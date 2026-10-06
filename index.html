@@ -5,6 +5,11 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="theme-color" content="#140d1f">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="PISSTERIA">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <meta name="mobile-web-app-capable" content="yes">
 <title>PISSTERIA feat. Uncle Pork</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -86,11 +91,13 @@ td{padding:0 8px}td:last-child{color:var(--yl);text-align:right}
   <h1>PISSTERIA<small>feat.</small>UNCLE PORK</h1>
   <p>FIND FOOD EGGS. DON'T GET ANGRY. DON'T GET OWNED BY THE SO CALLED LEFT.</p>
   <div><div class="lbl">ROUND LENGTH</div><div class="row" id="lenrow"></div></div>
-  <div><div class="lbl">HOW MANY LEFTIES</div><div class="row" id="diffrow"></div></div>
+  <div><div class="lbl">HOW MUCH OF THE SO CALLED LEFT</div><div class="row" id="diffrow"></div></div>
   <button class="btn big" id="startbtn">START</button>
   <p id="best" style="color:var(--yl)"></p>
   <p style="color:#bba6e0">DRAG ANYWHERE TO MOVE. (WASD / ARROWS ON A KEYBOARD.) WEAPONS FIRE BY THEMSELVES.</p>
   <button class="btn" id="howbtn" style="font-size:9px">HOW DOES THIS WORK?</button>
+  <button class="btn" id="installbtn" style="font-size:9px;display:none">INSTALL ON HOME SCREEN</button>
+  <p id="ioshint" style="display:none;color:#bba6e0">TO INSTALL: TAP SHARE, THEN "ADD TO HOME SCREEN".</p>
 </div>
 
 <div class="ov" id="how">
@@ -99,7 +106,7 @@ td{padding:0 8px}td:last-child{color:var(--yl);text-align:right}
   ▪ THE <b style="color:#c06bff">ANGER BAR</b> ALWAYS FILLS. FILL IT AND YOU EVOLVE:<br>
   &nbsp;&nbsp;UNCLE PORK → JANE LITTLE PISS (FAST) → UNCLE PISS (EGG MAGNET) → UNCLE PLEASANT (BREAKS 1 IN 4 EGGS). FILL IT AGAIN: GAME OVER.<br>
   ▪ <b style="color:#b98a5a">DOG EGGS</b> = 10 FOOD EGGS. <b style="color:#6ad0ff">FLOOR ZINC</b> = FULL HEALTH.<br>
-  ▪ A <b style="color:#ff5a5a">BOSS LEFTIE</b> SHOWS UP EVERY MINUTE. THEY'RE BIG. HIT THEM A LOT.<br>
+  ▪ A <b style="color:#ff5a5a">BOSS FROM THE SO CALLED LEFT</b> SHOWS UP EVERY MINUTE. THEY'RE BIG. HIT THEM A LOT.<br>
   ▪ EVERY LEVEL-UP HAS A 1 IN 100 CHANCE YOU SHIT YOURSELF. THAT'S IT. THAT'S THE GAME.<br>
   ▪ SURVIVE TO THE TIME LIMIT. YOU'LL SHIT YOURSELF THEN TOO.</p>
   <button class="btn" id="howback">BACK</button>
@@ -255,17 +262,17 @@ const CFG={
     toastTime:2.4,              // how long the big form banner stays up
   },
 
-  /* ---- boss lefties ---- */
+  /* ---- bosses (from the so called left) ---- */
   bosses:{
     firstAt:60,                 // sec until the first boss
     every:60,                   // sec between bosses
     noSpawnLast:15,             // no boss in the last N sec of the round
-    scale:3.6,                  // size (player = 1, normal lefties ~1-3)
+    scale:3.6,                  // size (player = 1, normal so called left ~1-3)
     scalePerBoss:.25,           // bigger each boss
     scaleMax:5.5,
     hp:300,                     // boss #1 hp
     hpPerBoss:150,              // extra hp for each later boss
-    speed:13,                   // px/sec (normal lefties are 16+)
+    speed:13,                   // px/sec (normal so called left are 16+)
     contactDmg:14,              // per hit
     dogEggDrops:1,              // dog eggs dropped when one dies (if you win)
   },
@@ -326,7 +333,7 @@ const TEXT={
     score:'FOOD EGGS',                 // HUD counter (score = food eggs, dog eggs count extra)
     bestLine:'FOOD EGGS',
     rowScore:'FOOD EGG SCORE', rowFood:'FOOD EGGS FOUND', rowDog:'DOG EGGS FOUND', rowSmashed:'FOOD EGGS SMASHED',
-    rowKills:'LEFTIES OWNED', rowLevel:'LEVEL', rowForm:'FINAL FORM', rowTime:'SURVIVED',
+    rowKills:'SO CALLED LEFT OWNED', rowLevel:'LEVEL', rowForm:'FINAL FORM', rowTime:'SURVIVED',
     newBest:'NEW BEST! ', rank:'RANK: ',
     zinc:'FLOOR ZINC! FULL HP', bossIncoming:'BOSS:', bossDown:'BOSS DOWN!', rowBosses:'BOSSES OWNED', smashed:'SMASHED!', dogSpawn:'DOG EGG!',
     rollName:'SAUSAGE ROLL', rollDesc:'EVERYTHING IS MAXED. HAVE A SNACK: +{heal} HEALTH.',
@@ -337,8 +344,8 @@ const TEXT={
 const ITEMS={
   whisk:{n:'WHISK',w:1,d:l=>'FASTER SWINGING. WHISK, WHISK, WHISK.'},
   cans:{n:'BAG OF CANS',w:1,d:l=>l===1?'BEER CANS FALL FROM THE SKY. THE PUDDLES HURT.':(l%2===0?'MORE PUDDLE DAMAGE':'BIGGER SPLASH')},
-  yoyo:{n:'YOYO',w:1,d:l=>l===1?'STRIKES THE CLOSEST BAD LAD.':(l%2===0?'MORE RANGE':'FASTER YOYO')},
-  jacket:{n:'SHALL I TAKE A JACKET?',w:0,d:l=>'RESILIENCE. LESS DAMAGE FROM LEFTIES.'},
+  yoyo:{n:'YOYO',w:1,d:l=>l===1?'STRIKES THE CLOSEST OF THE SO CALLED LEFT.':(l%2===0?'MORE RANGE':'FASTER YOYO')},
+  jacket:{n:'SHALL I TAKE A JACKET?',w:0,d:l=>'RESILIENCE. LESS DAMAGE FROM THE SO CALLED LEFT.'},
   elec:{n:'ELECTROLYTES',w:0,d:l=>'RUN FASTER. HYDRATION IS KEY.'},
   mush:{n:'MUSHROOMS',w:0,d:l=>'ANGER RISES MORE SLOWLY. EVERYTHING IS FINE.'},
 };
@@ -925,6 +932,17 @@ function buildOpts(){
   Object.keys(DIFFS).forEach(k=>{const b=document.createElement('button');b.className='btn'+(k===opts.diff?' on':'');b.textContent=k;b.onclick=()=>{opts.diff=k;[...D.children].forEach(c=>c.classList.toggle('on',c===b));showMenu()};D.appendChild(b)});
 }
 buildOpts();showMenu();
+
+// installable app: service worker + install button (Android/Chrome) + iOS hint
+if('serviceWorker' in navigator&&/^https?:$/.test(location.protocol))navigator.serviceWorker.register('sw.js').catch(()=>{});
+{
+  const standalone=matchMedia('(display-mode: standalone)').matches||navigator.standalone;
+  let deferred=null;
+  addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferred=e;if(!standalone)$('installbtn').style.display=''});
+  $('installbtn').onclick=async()=>{if(!deferred)return;deferred.prompt();await deferred.userChoice;deferred=null;$('installbtn').style.display='none'};
+  addEventListener('appinstalled',()=>{$('installbtn').style.display='none'});
+  if(!standalone&&/iphone|ipad|ipod/i.test(navigator.userAgent))$('ioshint').style.display='';
+}
 
 // build world once fonts/DOM are ready, then idle-render the map behind the menu
 buildWorld();
