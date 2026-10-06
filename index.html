@@ -24,7 +24,7 @@ html,body{margin:0;height:100%;background:var(--bg);overflow:hidden;font-family:
 #xp i{display:block;height:100%;width:0;background:linear-gradient(#ffe97a,#ffb800)}
 #top{position:absolute;left:8px;right:8px;top:14px;display:flex;justify-content:space-between;align-items:flex-start;font-size:10px;text-shadow:2px 2px #000}
 #top>div{background:#000a;padding:4px 6px}
-#top .sc{color:var(--yl)}
+#top .sc{color:var(--yl);text-align:right;line-height:1.6}
 #timer{font-size:14px}
 #pausebtn{pointer-events:auto;position:absolute;right:8px;top:calc(46px + env(safe-area-inset-top));width:34px;height:34px;background:#000a;border:3px solid var(--ln);color:var(--ln);font:inherit;font-size:12px;padding:0}
 .bars{position:absolute;left:8px;top:calc(40px + env(safe-area-inset-top));width:min(62vw,260px)}
@@ -330,6 +330,7 @@ const TEXT={
 
   // HUD + end-screen labels
   ui:{
+    dogHud:'DOG EGGS',
     score:'FOOD EGGS',                 // HUD counter (score = food eggs, dog eggs count extra)
     bestLine:'FOOD EGGS',
     rowScore:'FOOD EGG SCORE', rowFood:'FOOD EGGS FOUND', rowDog:'DOG EGGS FOUND', rowSmashed:'FOOD EGGS SMASHED',
@@ -889,7 +890,7 @@ function updHUD(){
   $('xp').firstElementChild.style.width=(G.xp/need(G.level)*100)+'%';
   $('lvl').textContent='LV '+G.level;
   $('timer').textContent=Math.floor(rem/60)+':'+String(Math.floor(rem%60)).padStart(2,'0');
-  $('score').textContent=TEXT.ui.score+' '+G.score;
+  $('score').innerHTML=TEXT.ui.score+' '+G.score+'<br><span style="font-size:8px;color:#c89a5c">'+TEXT.ui.dogHud+' '+G.dogs+'</span>';
   $('hpf').style.width=Math.max(0,G.hp/G.maxhp*100)+'%';
   const a=$('angf');a.style.width=Math.min(100,G.anger)+'%';a.style.background=F.col;
   $('formname').textContent=F.name+(G.form===3?' !!':'');
