@@ -281,7 +281,7 @@ const DIFFS=CFG.difficulty;
    ===================================================================== */
 const TEXT={
 
-  // random speech bubbles (timing: CFG.speech.every)
+  // ALL speech bubbles (random, evolving, bosses, shame) pick from this list. Timing: CFG.speech.every
   speech:[
     "Food eggs come to Uncle Piss",
     "Just asking questions",
@@ -300,17 +300,8 @@ const TEXT={
   ],
 
   bossNames:["THE PUNDIT","KEYBOARD WARRIOR","PODCAST BRO","THE BLUE TICK","FACEBOOK ADMIN","DEBATE LORD"],
-  bossSpeech:["Oh no. A BOSS.","He's got a ring light.","Don't engage. DON'T ENGAGE.","He wants a debate.","He's quoting a podcast."],
 
-  opening:"Food eggs. I need food eggs.",   // first bubble of every round
 
-  // said when evolving INTO each form (index = form number; 0 is unused)
-  evolve:[
-    null,
-    ["JANE LITTLE PISS HAS ENTERED THE CHAT","Oh here we go...","Jane's got places to be!"],
-    ["Call me UNCLE PISS","Food eggs come to Uncle Piss.","Magnetic personality, finally"],
-    ["UNCLE PLEASANT.","I AM PERFECTLY CALM.","Pleasant. PLEASANT!!"],
-  ],
 
   // game-over screens: [heading, subtext]
   endings:{
@@ -320,7 +311,6 @@ const TEXT={
     time:  ['YOU SURVIVED!','AND THEN YOU SHAT YOURSELF. AS IS TRADITION.'],
   },
   shameToast:{time:"TIME'S UP!", shat:"OH NO."},
-  shameSpeech:{time:"I think I need to sit down", shat:"...I think I've shat myself"},
 
   // rank by score: you get the first entry whose number is above your score
   ranks:[
@@ -590,7 +580,7 @@ function newGame(){
   for(let i=0;i<CFG.eggs.startCount;i++)spawnEgg('food',60,CFG.eggs.spawnDistMax);
   refreshItems();hide('menu');hide('over');hide('pause');hide('levelup');
   $('hud').style.display='block';updHUD();
-  say(TEXT.opening);
+  say(pick(TEXT.speech));
 }
 
 function spawnEgg(type,dmin,dmax){
@@ -614,7 +604,7 @@ function spawnBoss(){
   if(!ok)return false;
   const n=G.bossN++,sc=Math.min(B.scaleMax,B.scale+n*B.scalePerBoss),hp=B.hp+n*B.hpPerBoss;
   G.enemies.push({x,y,s:sc,hp,max:hp,spd:B.speed,v:0,ph:0,flash:0,dmg:B.contactDmg,boss:true,name:TEXT.bossNames[n%TEXT.bossNames.length]});
-  toast(TEXT.ui.bossIncoming+' '+TEXT.bossNames[n%TEXT.bossNames.length],2.2);say(pick(TEXT.bossSpeech),2.6);G.shake=.4;sfx.form();
+  toast(TEXT.ui.bossIncoming+' '+TEXT.bossNames[n%TEXT.bossNames.length],2.2);say(pick(TEXT.speech),2.6);G.shake=.4;sfx.form();
   return true;
 }
 function floatText(x,y,s,col){G.texts.push({x,y,s,col,t:0})}
@@ -672,7 +662,7 @@ function update(dt){
   // anger
   G.anger+=dt*(CFG.anger.rate+CFG.anger.rampPerMin*G.t/60)*F.rate*(1-CFG.buffs.mush.perLevel*G.buff.mush);
   if(G.anger>=100){
-    if(G.form<3){G.form++;G.anger=CFG.anger.resetOnEvolve;G.shake=.5;G.flash=.5;sfx.form();toast(FORMS[G.form].name+'!\n'+TEXT.perks[G.form],CFG.evolve.toastTime);say(pick(TEXT.evolve[G.form]),3);G.slow=CFG.evolve.slowmo;burst(G.px,G.py-8,FORMS[G.form].col,24,90)}
+    if(G.form<3){G.form++;G.anger=CFG.anger.resetOnEvolve;G.shake=.5;G.flash=.5;sfx.form();toast(FORMS[G.form].name+'!\n'+TEXT.perks[G.form],CFG.evolve.toastTime);say(pick(TEXT.speech),3);G.slow=CFG.evolve.slowmo;burst(G.px,G.py-8,FORMS[G.form].col,24,90)}
     else{endGame('anger');return}
   }
   // eggs
@@ -783,7 +773,7 @@ function refreshItems(){
 function startShame(reason){
   G.state='shame';G.reason=reason;G.sh={t:0,max:Math.hypot(W,H)/2+30};G.shake=2.4;sfx.shame();$('bubble').style.display='none';
   toast(TEXT.shameToast[reason],2.4);
-  say(TEXT.shameSpeech[reason],3);
+  say(pick(TEXT.speech),3);
   $('bubble').style.display='block';
 }
 function updShame(dt){
