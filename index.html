@@ -266,6 +266,12 @@ const CFG={
     cdStart:1.3, cdPerStep:.1, cdMin:.35,   // odd levels (3,5,7) = faster
   },
 
+  vicks:{                       // minty aura around Pork. Damage AND range grow every level
+    radiusBase:28, radiusPerLevel:5, radiusMax:150,
+    dmgBase:4, dmgPerLevel:2.5,       // level 1 can't one-shot anything
+    tick:.5,                    // sec between damage pulses
+  },
+
   /* ---- ARGY BHAJI event ---- */
   bhaji:{
     firstIn:[70,100],           // sec until the first alert [min,max]
@@ -391,6 +397,7 @@ const ITEMS={
   yoyo:{n:'YOYO',w:1,d:l=>l===1?'STRIKES THE CLOSEST OF THE SO CALLED LEFT.':(l%2===0?'MORE RANGE':'FASTER YOYO')},
   jacket:{n:'SHALL I TAKE A JACKET?',w:0,d:l=>'RESILIENCE. LESS DAMAGE FROM THE SO CALLED LEFT.'},
   elec:{n:'ELECTROLYTES',w:0,d:l=>'RUN FASTER. HYDRATION IS KEY.'},
+  vicks:{n:'VICKS INHALER',w:1,d:l=>l===1?'A MENTHOL CLOUD AROUND YOU HURTS THE SO CALLED LEFT.':'BIGGER CLOUD. MORE DAMAGE.'},
   mush:{n:'MUSHROOMS',w:0,d:l=>'ANGER RISES MORE SLOWLY. EVERYTHING IS FINE.'},
 };
 
@@ -472,6 +479,7 @@ const ICON={
  jacket:mk(["...bb..bb...","..bbbbbbbb..",".bbbbwwbbbb.","bbbbbwwbbbbb","bb.bbwwbb.bb","bb.bbwwbb.bb","bb.bbwwbb.bb","bb.bbwwbb.bb","...bbwwbb...","...bbbbbb...","...bbbbbb...","............"],{b:'#3b6fd8',w:'#ffd23a'}),
  elec:mk(["......yyy...",".....yyy....","....yyy.....","...yyyyyy...","......yyy...",".....yyy....","....yy......","...yy.......","..y.........","............","............","............"],{y:'#ffe040'}),
  mush:mk(["...rrrrrr...","..rrwrrwrr..",".rrrrrrrrrr.",".rwwrrrrwwr.",".rrrrrrrrrr.","...wwwwww...","....wwww....","....wwww....","....wwww....","...wwwwww...","............","............"],{r:'#e03030',w:'#f4ecd8'}),
+ vicks:mk(["....bbbb....","....bbbb....","...wwwwww...","...wwwwww...","...wBBBBw...","...wBwwBw...","...wBBBBw...","...wwwwww...","...wwwwww...","....wwww....","....gggg....","............"],{b:'#2a7fd4',w:'#e8f0ff',B:'#2a7fd4',g:'#9aa8c0'}),
  roll:mk(["............","..bbbbbbbb..",".bYYYYYYYYb.",".bYyyyyyyYb.",".bYyyyyyyYb.",".bYYYYYYYYb.","..bbbbbbbb..","............","............","............","............","............"],{b:'#8a5020',Y:'#e8b060',y:'#d06040'})
 };
 const BOSS_SPR=[["...dd..dd..."],["..dd....dd.."]].map(l=>mk(["...y.yy.y...","...yyyyyy..."].concat(EROWS,l),{p:'#a23be8',P:'#cf8bff',s:'#eab890',e:'#111',m:'#6a2020',c:'#7a1020',d:'#333',y:'#ffd23a'}));
@@ -632,8 +640,8 @@ function newGame(){
     px:START[0],py:START[1],fx:1,walk:0,moving:false,
     hp:CFG.player.maxHp,maxhp:CFG.player.maxHp,anger:0,form:0,inv:0,shake:0,flash:0,
     score:0,food:0,dogs:0,smashed:0,kills:0,level:1,xp:0,pend:0,shit:false,
-    wp:{whisk:1,cans:0,yoyo:0},buff:{jacket:0,elec:0,mush:0},
-    cd:{whisk:1,cans:1.5,yoyo:1},swing:null,yo:null,
+    wp:{whisk:1,cans:0,yoyo:0,vicks:0},buff:{jacket:0,elec:0,mush:0},
+    cd:{whisk:1,cans:1.5,yoyo:1,vicks:0},swing:null,yo:null,
     enemies:[],eggs:[],puddles:[],cans:[],fx_:[],texts:[],
     spawnAcc:0,eggT:0,dogT:rnd(...CFG.eggs.dogEvery)*.6,zincT:rnd(...CFG.eggs.zincEvery)*.8,sayT:5,bhaji:null,bhajiT:rnd(...CFG.bhaji.firstIn),bhajis:0,sf:0,sfAcc:0,toiletCd:0,shitWhy:'shat',trip:0,chocT:rnd(...CFG.chocolate.every)*.7,nextBoss:CFG.bosses.firstAt,bossN:0,bossKills:0,slow:0,bubbleT:0,toastT:0,sh:null,reason:''};
   for(let i=0;i<CFG.eggs.startCount;i++)spawnEgg('food',60,CFG.eggs.spawnDistMax);
@@ -670,9 +678,9 @@ function floatText(x,y,s,col){G.texts.push({x,y,s,col,t:0})}
 function burst(x,y,col,n=6,sp=40){for(let i=0;i<n;i++){const a=Math.random()*6.283,v=rnd(sp*.3,sp);G.fx_.push({x,y,vx:Math.cos(a)*v,vy:Math.sin(a)*v-20,t:0,life:rnd(.3,.6),col,sz:Math.random()<.4?2:1})}}
 function say(s,dur=2.6){const b=$('bubble');b.textContent=s;b.style.display='block';G.bubbleT=dur}
 function toast(s,dur=1.6){const b=$('toast');b.textContent=s;b.style.display='block';G.toastT=dur}
-function hit(e,d){
+function hit(e,d,nk){
   e.hp-=d;e.flash=.1;
-  if(!e.boss){const dx=e.x-G.px,dy=e.y-G.py,l=Math.hypot(dx,dy)||1;e.x+=dx/l*3;e.y+=dy/l*3}
+  if(!e.boss&&!nk){const dx=e.x-G.px,dy=e.y-G.py,l=Math.hypot(dx,dy)||1;e.x+=dx/l*3;e.y+=dy/l*3}
   if(e.hp<=0&&!e.dead){e.dead=true;G.kills++;burst(e.x,e.y,'#a23be8',e.boss?30:5,e.boss?110:45);if(e.boss)bossDown(e)}
 }
 function bossDown(e){
@@ -829,14 +837,24 @@ function updToilets(dt){
     if(G.sf<=0){G.sf=0;toast(TEXT.ui.sfEnd,1.4)}
   }else if(G.toiletCd<=0){
     for(const t of TOILETS)if(Math.hypot(G.px-t[0],G.py-t[1])<T.triggerRadius){
-      G.sf=T.duration;G.sfAcc=0;G.toiletCd=T.cooldown+T.duration;G.cd.whisk=G.cd.cans=G.cd.yoyo=0;
+      G.sf=T.duration;G.sfAcc=0;G.toiletCd=T.cooldown+T.duration;G.cd.whisk=G.cd.cans=G.cd.yoyo=G.cd.vicks=0;
       toast(TEXT.ui.sfToast,2.2);sfx.form();G.shake=.4;G.flash=.3;break;
     }
   }
 }
+const vicksR=()=>{const l=wl('vicks'),V=CFG.vicks;return l>0?Math.min(V.radiusMax,V.radiusBase+V.radiusPerLevel*(l-1)):0};
 const wl=id=>G.sf>0&&G.wp[id]>0?CFG.toilets.weaponLevel:G.wp[id];
 function weapons(dt){
-  const w={whisk:wl('whisk'),cans:wl('cans'),yoyo:wl('yoyo')};
+  const w={whisk:wl('whisk'),cans:wl('cans'),yoyo:wl('yoyo'),vicks:wl('vicks')};
+  // vicks inhaler aura
+  if(w.vicks>0){
+    G.cd.vicks-=dt;if(G.vicksFlash>0)G.vicksFlash-=dt;
+    if(G.cd.vicks<=0){
+      G.cd.vicks=CFG.vicks.tick;G.vicksFlash=.12;const r=vicksR(),d=CFG.vicks.dmgBase+CFG.vicks.dmgPerLevel*(w.vicks-1);
+      for(const e of G.enemies)if(!e.dead){const dx=e.x-G.px,dy=e.y-G.py,rr=r+3*e.s;if(dx*dx+dy*dy<rr*rr)hit(e,d,true)}
+    }
+    if(Math.random()<dt*20){const a=Math.random()*6.283,rr=Math.sqrt(Math.random())*vicksR();G.fx_.push({x:G.px+Math.cos(a)*rr,y:G.py-6+Math.sin(a)*rr*.8,vx:rnd(-6,6),vy:-14,t:0,life:.8,col:'#bffff0',sz:1})}
+  }
   // whisk
   G.cd.whisk-=dt;if(G.swing){G.swing.t+=dt;if(G.swing.t>=G.swing.dur)G.swing=null}
   if(G.cd.whisk<=0){const t=nearest(G.enemies,G.px,G.py-6,CFG.whisk.range);if(t){hit(t,CFG.whisk.dmgBase+CFG.whisk.dmgPerLevel*w.whisk);G.swing={t:0,dur:.28,a0:Math.atan2(t.y-G.py,t.x-G.px)};G.cd.whisk=Math.max(CFG.whisk.cdMin,CFG.whisk.cdStart-CFG.whisk.cdPerLevel*(w.whisk-1));sfx.whisk()}}
@@ -921,6 +939,12 @@ function render(){
     g.fillStyle='#f0b020';const r2=r*.8;
     for(let y=-r2*.65;y<=r2*.65;y++){const h=Math.sqrt(1-(y/(r2*.65))**2)*r2;g.fillRect(Math.round(X(p.x)-h),Y(p.y)+Math.round(y),Math.round(h*2),1)}
     g.globalAlpha=a;g.fillStyle='#fff';for(let i=0;i<4;i++){const t=G.t*2+i*1.7;g.fillRect(X(p.x)+Math.round(Math.cos(t*1.3+i)*r*.6),Y(p.y)+Math.round(Math.sin(t+i*2)*r*.35),1,1)}
+    g.globalAlpha=1;
+  }
+  if(G.wp&&G.wp.vicks>0&&G.state!=='over'){
+    const r=vicksR(),ccx=X(G.px),ccy=Y(G.py-6),pulse=G.vicksFlash>0?.2:.1;g.globalAlpha=pulse;g.fillStyle='#8fffe0';
+    for(let y=-r*.8;y<=r*.8;y++){const h=Math.sqrt(1-(y/(r*.8))**2)*r;g.fillRect(Math.round(ccx-h),ccy+Math.round(y),Math.round(h*2),1)}
+    g.globalAlpha=.55;g.fillStyle='#d8fff6';const n=Math.max(30,r|0);for(let i=0;i<n;i++){const a=i/n*6.283;g.fillRect(Math.round(ccx+Math.cos(a)*r),Math.round(ccy+Math.sin(a)*r*.8),1,1)}
     g.globalAlpha=1;
   }
   drawLandmarks(g,X,Y);
