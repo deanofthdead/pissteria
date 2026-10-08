@@ -33,6 +33,13 @@ html,body{margin:0;height:100%;background:var(--bg);overflow:hidden;font-family:
 .bar span{position:absolute;left:4px;top:3px;font-size:8px;text-shadow:1px 1px #000;white-space:nowrap}
 .hp i{background:repeating-linear-gradient(90deg,#ff4a4a 0 6px,#d92b2b 6px 8px)}
 .anger i{background:#c06bff}
+.chip{background:#000c;border:3px solid;padding:6px 8px;font-size:10px;text-shadow:1px 1px #000;white-space:nowrap}
+.chip.red{border-color:#ff3b3b;color:#ff9a9a;animation:pulse .5s steps(2) infinite}
+.chip.org{border-color:#ff9a3c;color:#ffd0a0}
+.chip.pur{border-color:#ff5fe0;color:#ffc0f4}
+#chips{position:absolute;left:50%;transform:translateX(-50%);top:calc(150px + env(safe-area-inset-top));display:flex;flex-direction:column;gap:4px;align-items:center}
+#game.trip{animation:trip 2.4s linear infinite}
+@keyframes trip{0%{filter:hue-rotate(0deg) saturate(2.4);transform:rotate(-1.6deg) scale(1.08)}25%{transform:rotate(1.2deg) scale(1.12)}50%{filter:hue-rotate(180deg) saturate(3);transform:rotate(1.6deg) scale(1.08)}75%{transform:rotate(-1.2deg) scale(1.12)}100%{filter:hue-rotate(360deg) saturate(2.4);transform:rotate(-1.6deg) scale(1.08)}}
 .pips{position:absolute;right:3px;top:3px;display:flex;gap:3px}
 .pips b{width:8px;height:8px;border:2px solid #fff;background:#0009}
 .pips b.on{background:#fff}
@@ -81,6 +88,7 @@ td{padding:0 8px}td:last-child{color:var(--yl);text-align:right}
     <div class="bar anger" id="angbar"><i id="angf"></i><span id="formname">UNCLE PORK</span><div class="pips"><b></b><b></b><b></b><b></b></div></div>
   </div>
   <div id="items"></div>
+  <div id="chips"></div>
   <button id="pausebtn">II</button>
   <div id="bubble"></div>
   <div id="toast"></div>
@@ -108,6 +116,9 @@ td{padding:0 8px}td:last-child{color:var(--yl);text-align:right}
   ▪ <b style="color:#b98a5a">DOG EGGS</b> = 10 FOOD EGGS. <b style="color:#6ad0ff">FLOOR ZINC</b> = FULL HEALTH.<br>
   ▪ A <b style="color:#ff5a5a">BOSS FROM THE SO CALLED LEFT</b> SHOWS UP EVERY MINUTE. THEY'RE BIG. HIT THEM A LOT.<br>
   ▪ EVERY LEVEL-UP HAS A 1 IN 100 CHANCE YOU SHIT YOURSELF. THAT'S IT. THAT'S THE GAME.<br>
+  ▪ <b style="color:#ff8a8a">ARGY BHAJI</b> HITS AT RANDOM: GET TO <b style="color:#ffd23a">BECKY'S BHAJIS</b> IN 20S OR YOU SHIT YOURSELF. A BHAJI = 50 FOOD EGGS. (1 IN 50 MAKES YOU SHIT YOURSELF ANYWAY.)<br>
+  ▪ STAND NEAR THE <b style="color:#ffd0a0">TOILETS</b> FOR 10S OF SAUSAGE FINGERS: ALL WEAPONS LV 50, BUT YOU DROP 2 FOOD EGGS A SECOND.<br>
+  ▪ <b style="color:#ffc0f4">MUSHROOM CHOCOLATE</b> MAKES THE WORLD GO TRIPPY AND YOUR CONTROLS BACKWARDS.<br>
   ▪ SURVIVE TO THE TIME LIMIT. YOU'LL SHIT YOURSELF THEN TOO.</p>
   <button class="btn" id="howback">BACK</button>
 </div>
@@ -255,6 +266,33 @@ const CFG={
     cdStart:1.3, cdPerStep:.1, cdMin:.35,   // odd levels (3,5,7) = faster
   },
 
+  /* ---- ARGY BHAJI event ---- */
+  bhaji:{
+    firstIn:[70,100],           // sec until the first alert [min,max]
+    every:[90,150],             // sec between alerts after that
+    timeLimit:20,               // sec to reach Becky's Bhajis or you shit yourself
+    noProcLast:30,              // no alert in the last N sec of the round
+    radius:30,                  // how close counts as "at the stand"
+    value:50,                   // a bhaji is worth this many food eggs
+    calm:40,                    // anger removed by a bhaji (x form calm)
+    shitChance:1/50,            // chance the bhaji makes you shit yourself
+  },
+
+  /* ---- toilets -> SAUSAGE FINGERS ---- */
+  toilets:{
+    triggerRadius:34,           // how close to a toilet block triggers it
+    duration:10,                // sec of sausage fingers
+    weaponLevel:50,             // owned weapons are treated as this level
+    eggsLostPerSec:2,           // food eggs (score) lost per second
+    cooldown:30,                // sec before the toilets work again (0 = no cooldown)
+  },
+
+  /* ---- mushroom chocolate ---- */
+  chocolate:{
+    every:[50,75],              // sec between spawns
+    duration:10,                // sec of tripping + reversed controls
+  },
+
   /* ---- evolution moment ---- */
   evolve:{
     slowmo:.9,                  // real seconds of slow-motion when you evolve
@@ -315,9 +353,11 @@ const TEXT={
     hp:    ['GAME OVER','THE SO CALLED LEFT GOT YOU.'],
     anger: ['GAME OVER','TOO ANGRY. UNCLE PLEASANT POPPED.'],
     shat:  ['YOU SHAT YOURSELF','A LEVEL-UP WAS TOO MUCH FOR YOUR BOWELS. ONE IN A HUNDRED, MATE.'],
+    bhajiLate:['YOU SHAT YOURSELF',"ARGY BHAJI HIT AND YOU NEVER MADE IT TO BECKY'S BHAJIS."],
+    bhajiBad: ['YOU SHAT YOURSELF','THE BHAJI WAS TOO MUCH. ONE IN FIFTY, MATE.'],
     time:  ['YOU SURVIVED!','AND THEN YOU SHAT YOURSELF. AS IS TRADITION.'],
   },
-  shameToast:{time:"TIME'S UP!", shat:"OH NO."},
+  shameToast:{time:"TIME'S UP!", shat:"OH NO.", bhajiLate:"TOO LATE!", bhajiBad:"THE BHAJI..."},
 
   // rank by score: you get the first entry whose number is above your score
   ranks:[
@@ -331,6 +371,9 @@ const TEXT={
   // HUD + end-screen labels
   ui:{
     dogHud:'DOG EGGS',
+    argyToast:"ARGY BHAJI!\nGET TO BECKY'S BHAJIS!", argyChip:'ARGY BHAJI!', bhajiName:"BECKY'S BHAJIS", bhajiToast:'BHAJI GET!', bhajiGot:'BHAJI',
+    sfToast:'SAUSAGE FINGERS!\nALL WEAPONS LV 50!', sfChip:'SAUSAGE FINGERS', sfEnd:'FINGERS BACK TO NORMAL', toiletLabel:'TOILETS',
+    chocToast:'MUSHROOM CHOCOLATE!\nCONTROLS BACKWARDS. WHOA.', chocChip:'TRIPPING', chocFloat:'WHOA', rowBhajis:'BHAJIS EATEN',
     score:'FOOD EGGS',                 // HUD counter (score = food eggs, dog eggs count extra)
     bestLine:'FOOD EGGS',
     rowScore:'FOOD EGG SCORE', rowFood:'FOOD EGGS FOUND', rowDog:'DOG EGGS FOUND', rowSmashed:'FOOD EGGS SMASHED',
@@ -417,6 +460,7 @@ const ESPR=EPAL.map(c=>[["...dd..dd..."],["..dd....dd.."]].map(l=>mk(EROWS.conca
 const SPR={
  egg:mk([".eeee.","eEEEEe","eEwEEe","eEEEEe","eEEEEe","eEEEEe",".eEEe.","..ee.."],{e:'#c8a060',E:'#fff6e0',w:'#fff'}),
  dog:mk([".....bb...","....bBBb..","...bBBBBb.","..bbbbbbbb",".bBBBBBBBb","bBBBwBBBBb","bBBBBBBBBb",".bbbbbbbbb"],{b:'#4a2a10',B:'#8a5a2c',w:'#c89a5c'}),
+ choc:mk(["kkkkkkkkkk","kBBBBBBBBk","kBBrrrrBBk","kBrrwrrrBk","kBBBssBBBk","kBBBssBBBk","kBBBBBBBBk","kkkkkkkkkk"],{k:'#3a1c0a',B:'#7a4420',r:'#e03030',w:'#fff',s:'#f4ecd8'}),
  zinc:mk(["..gggg..",".gggggg.",".bbbbbb.",".bwwwwb.",".bbbwbb.",".bbwbbb.",".bwwwwb.",".bbbbbb.",".dddddd."],{g:'#ccd',b:'#2a7fd4',w:'#fff',d:'#14407a'}),
  tree:mk(["....oooo....","..ooGGGGoo..",".oGGLGGGGGo.","oGGGGGLGGGGo","oGLGGGGGGLGo","oGGGGGGLGGGo",".oGGLGGGGGo.","..ooGGGGoo..","....oooo....","....tt......","....tt......"].map(r=>r.padEnd(12,'.')),{o:'#14401a',G:'#2f8a2a',L:'#52b83c',t:'#5a3a1a'}),
  can:mk(["kkkk","yyyy","ywwy","yyyy","kkkk"],{k:'#c8c8d0',y:'#f0b020',w:'#fff'}),
@@ -441,6 +485,8 @@ const P=(x,y)=>[Math.round(x*KX),Math.round(y*KY)];
 const POLY=[[100,545],[190,412],[440,392],[690,190],[860,90],[1040,25],[1290,85],[1935,725],[1450,918],[1280,1022],[900,1250],[850,1235],[620,1020],[360,790]].map(p=>P(...p));
 const HUB=P(980,465);
 const START=P(560,725);
+const BHAJI_POS=P(790,730);                       // Becky's Bhajis, next to the food traders
+const TOILETS=[P(1060,640),P(905,300)];           // two toilet blocks
 const LAKE={x:P(1165,415)[0],y:P(1165,415)[1],rx:Math.round(86*KX),ry:Math.round(50*KY)};
 function inPoly(x,y){let c=false;for(let i=0,j=POLY.length-1;i<POLY.length;j=i++){const a=POLY[i],b=POLY[j];if((a[1]>y)!==(b[1]>y)&&x<(b[0]-a[0])*(y-a[1])/(b[1]-a[1])+a[0])c=!c}return c}
 const inLake=(x,y)=>{const dx=(x-LAKE.x)/LAKE.rx,dy=(y-LAKE.y)/LAKE.ry;return dx*dx+dy*dy<1};
@@ -529,6 +575,9 @@ function buildWorld(){
   line(640,325,1000,290,22);line(1040,290,1330,400,16);line(1000,480,940,720,14);line(1340,700,1670,480,22);line(1330,720,1450,910,12);line(730,1130,1060,870,22);line(1060,870,1270,1010,12);line(1260,260,1330,410,6);line(560,640,380,780,10);
   trees.sort((a,b)=>a[1]-b[1]);
   trees.forEach(p=>g.drawImage(SPR.tree,p[0]-6,p[1]-11));
+  // pads under the toilets + Becky's stand (the sprites themselves are drawn live)
+  TOILETS.forEach(t=>{g.fillStyle='#8a7a52';g.fillRect(t[0]-41,t[1]-6,82,44);g.fillStyle='#cdb98a';g.fillRect(t[0]-39,t[1]-4,78,40);txtC(g,TEXT.ui.toiletLabel,t[0],t[1]-1,'#3a2a10')});
+  {const b=BHAJI_POS;g.fillStyle='#8a7a52';g.fillRect(b[0]-37,b[1]-34,74,46);g.fillStyle='#cdb98a';g.fillRect(b[0]-35,b[1]-32,70,42)}
   // labels
   const label=(str,ix,iy,col='#fff')=>{const p=P(ix,iy),ls=str.split('|');ls.forEach((l,i)=>{const w=txtW(l);txt(g,l,Math.round(p[0]-w/2),p[1]-ls.length*3+i*7,col,1,'#11260c')})};
   label('GENERAL|CAMPING',825,205);label('GENERAL|CAMPING',790,380);label('VIP PARKING',268,548);label('VIP CAMPING',470,470,'#ffd0f0');label('VIP|SHOWERS',590,448);
@@ -556,6 +605,8 @@ const sfx={
   egg:()=>beep(720,.07,'square',.04,500),
   dog:()=>{beep(300,.09,'square',.05,200);setTimeout(()=>beep(500,.09,'square',.05,300),80);setTimeout(()=>beep(800,.15,'square',.05,300),160)},
   zinc:()=>{beep(500,.1,'triangle',.06,500);setTimeout(()=>beep(1000,.2,'triangle',.06,300),90)},
+  alarm:()=>{[880,660,880].forEach((f,i)=>setTimeout(()=>beep(f,.12,'square',.06),i*140))},
+  trip:()=>{for(let i=0;i<8;i++)setTimeout(()=>beep(400+(i%2)*300+i*40,.09,'sine',.06),i*70)},
   smash:()=>beep(150,.15,'sawtooth',.05,-80),
   hit:()=>beep(110,.12,'sawtooth',.06,-50),
   whisk:()=>beep(1200,.04,'triangle',.02,-600),
@@ -584,9 +635,9 @@ function newGame(){
     wp:{whisk:1,cans:0,yoyo:0},buff:{jacket:0,elec:0,mush:0},
     cd:{whisk:1,cans:1.5,yoyo:1},swing:null,yo:null,
     enemies:[],eggs:[],puddles:[],cans:[],fx_:[],texts:[],
-    spawnAcc:0,eggT:0,dogT:rnd(...CFG.eggs.dogEvery)*.6,zincT:rnd(...CFG.eggs.zincEvery)*.8,sayT:5,nextBoss:CFG.bosses.firstAt,bossN:0,bossKills:0,slow:0,bubbleT:0,toastT:0,sh:null,reason:''};
+    spawnAcc:0,eggT:0,dogT:rnd(...CFG.eggs.dogEvery)*.6,zincT:rnd(...CFG.eggs.zincEvery)*.8,sayT:5,bhaji:null,bhajiT:rnd(...CFG.bhaji.firstIn),bhajis:0,sf:0,sfAcc:0,toiletCd:0,shitWhy:'shat',trip:0,chocT:rnd(...CFG.chocolate.every)*.7,nextBoss:CFG.bosses.firstAt,bossN:0,bossKills:0,slow:0,bubbleT:0,toastT:0,sh:null,reason:''};
   for(let i=0;i<CFG.eggs.startCount;i++)spawnEgg('food',60,CFG.eggs.spawnDistMax);
-  refreshItems();hide('menu');hide('over');hide('pause');hide('levelup');
+  cv.classList.remove('trip');refreshItems();hide('menu');hide('over');hide('pause');hide('levelup');
   $('hud').style.display='block';updHUD();
   say(pick(TEXT.speech));
 }
@@ -641,7 +692,8 @@ cv.addEventListener('pointermove',e=>{if(e.pointerId!==jid)return;const dx=e.cli
 const endPtr=e=>{if(e.pointerId!==jid)return;jid=null;jv.x=jv.y=0;$('stick').style.display='none'};
 cv.addEventListener('pointerup',endPtr);cv.addEventListener('pointercancel',endPtr);
 cv.addEventListener('contextmenu',e=>e.preventDefault());
-function inputVec(){
+function inputVec(){const v=rawInput();return G&&G.trip>0?{x:-v.x,y:-v.y}:v}
+function rawInput(){
   let x=(keys.d||keys.arrowright?1:0)-(keys.a||keys.arrowleft?1:0),y=(keys.s||keys.arrowdown?1:0)-(keys.w||keys.arrowup?1:0);
   if(x||y){const l=Math.hypot(x,y);return{x:x/l,y:y/l}}
   return jv;
@@ -677,15 +729,18 @@ function update(dt){
   G.eggT-=dt;
   if(G.eggT<=0){G.eggT=.35;let n=0;for(const e of G.eggs)if(e.type==='food')n++;const want=CFG.eggs.targetBase+G.form*CFG.eggs.targetPerForm;if(n<want)spawnEgg('food',CFG.eggs.spawnDistMin,CFG.eggs.spawnDistMax)}
   G.dogT-=dt;if(G.dogT<=0){G.dogT=rnd(...CFG.eggs.dogEvery);if(spawnEgg('dog',140,460))floatText(G.px,G.py-22,TEXT.ui.dogSpawn,'#c89a5c')}
+  G.chocT-=dt;if(G.chocT<=0){G.chocT=rnd(...CFG.chocolate.every);if(!G.eggs.some(e=>e.type==='choc'))spawnEgg('choc',120,420)}
   G.zincT-=dt;if(G.zincT<=0){G.zincT=rnd(...CFG.eggs.zincEvery);if(!G.eggs.some(e=>e.type==='zinc'))spawnEgg('zinc',120,420)}
   for(let i=G.eggs.length-1;i>=0;i--){
     const e=G.eggs[i];e.life-=dt;
     let dx=G.px-e.x,dy=G.py-(e.y);const d=Math.hypot(dx,dy);
-    if(F.magnet&&e.type!=='zinc'&&d<F.magnet){const k=CFG.eggs.magnetPull*dt/(d||1);e.x+=dx*k;e.y+=dy*k}
+    if(F.magnet&&e.type!=='zinc'&&e.type!=='choc'&&d<F.magnet){const k=CFG.eggs.magnetPull*dt/(d||1);e.x+=dx*k;e.y+=dy*k}
     if(d<CFG.player.pickupRadius){G.eggs.splice(i,1);collect(e);continue}
     if(e.life<=0||d>900)G.eggs.splice(i,1);
   }
-  if(G.shit){G.shit=false;startShame('shat');return}
+  if(updBhaji(dt))return;
+  updToilets(dt);
+  if(G.shit){G.shit=false;startShame(G.shitWhy||'shat');return}
   if(G.pend>0){openLevelUp();return}
   // enemies
   const rate=(CFG.enemies.spawnBase+G.t/60*CFG.enemies.spawnPerMin+(G.level-1)*CFG.enemies.spawnPerLevel)*G.diff.spawn;
@@ -705,7 +760,7 @@ function update(dt){
   weapons(dt);
   G.enemies=G.enemies.filter(e=>!e.dead);
   // puddles / cans
-  for(let i=G.cans.length-1;i>=0;i--){const c=G.cans[i];c.t+=dt;if(c.t>=.45){const l=G.wp.cans,C=CFG.cans,r=C.radiusBase+C.radiusPerStep*Math.floor((l-1)/2);G.puddles.push({x:c.x,y:c.y,r,life:C.puddleLife,tick:0,dmg:C.dmgBase+C.dmgPerStep*Math.floor(l/2),max:C.puddleLife});burst(c.x,c.y,'#f0b020',8,50);sfx.can();G.cans.splice(i,1)}}
+  for(let i=G.cans.length-1;i>=0;i--){const c=G.cans[i];c.t+=dt;if(c.t>=.45){const l=wl('cans'),C=CFG.cans,r=C.radiusBase+C.radiusPerStep*Math.floor((l-1)/2);G.puddles.push({x:c.x,y:c.y,r,life:C.puddleLife,tick:0,dmg:C.dmgBase+C.dmgPerStep*Math.floor(l/2),max:C.puddleLife});burst(c.x,c.y,'#f0b020',8,50);sfx.can();G.cans.splice(i,1)}}
   for(let i=G.puddles.length-1;i>=0;i--){const p=G.puddles[i];p.life-=dt;p.tick-=dt;if(p.tick<=0){p.tick=CFG.cans.tick;for(const e of G.enemies)if(!e.dead){const dx=e.x-p.x,dy=e.y-p.y;if(dx*dx+dy*dy<(p.r+3*e.s)*(p.r+3*e.s))hit(e,p.dmg)}}if(p.life<=0)G.puddles.splice(i,1)}
   // fx
   for(let i=G.fx_.length-1;i>=0;i--){const f=G.fx_[i];f.t+=dt;f.x+=f.vx*dt;f.y+=f.vy*dt;f.vy+=90*dt;if(f.t>f.life)G.fx_.splice(i,1)}
@@ -720,21 +775,68 @@ function update(dt){
 function collect(e){
   const F=FORMS[G.form];
   if(e.type==='zinc'){G.hp=G.maxhp;sfx.zinc();floatText(G.px,G.py-18,TEXT.ui.zinc,'#6ad0ff');burst(G.px,G.py-8,'#6ad0ff',12,60);return}
+  if(e.type==='choc'){G.trip=CFG.chocolate.duration;sfx.trip();toast(TEXT.ui.chocToast,2.2);floatText(G.px,G.py-18,TEXT.ui.chocFloat,'#ff5fe0');for(let i=0;i<14;i++)burst(G.px,G.py-8,'hsl('+(i*26)+',90%,60%)',2,70);return}
   if(F.smash&&Math.random()<F.smash){G.smashed++;sfx.smash();floatText(G.px,G.py-18,TEXT.ui.smashed,'#ff4a4a');burst(e.x,e.y,'#ffd23a',10,70);return}
   const dog=e.type==='dog',val=dog?CFG.eggs.dogValue:1;
   G.score+=val;dog?G.dogs++:G.food++;
   G.anger=Math.max(0,G.anger-(dog?CFG.anger.dogEggCalm:CFG.anger.foodEggCalm)*F.calm);
   dog?sfx.dog():sfx.egg();
   floatText(G.px,G.py-18,'+'+val,dog?'#c89a5c':'#fff');
-  G.xp+=val;
+  gainXP(val);
+}
+function gainXP(v){
+  G.xp+=v;
   while(G.xp>=need(G.level)){
     G.xp-=need(G.level);G.level++;
-    if(Math.random()<CFG.levels.shitChance){G.shit=true;break}
+    if(Math.random()<CFG.levels.shitChance){G.shit=true;G.shitWhy='shat';break}
     G.pend++;
   }
 }
+/* ---------- Argy Bhaji / toilets ---------- */
+function updBhaji(dt){
+  const B=CFG.bhaji;
+  if(!G.bhaji){
+    G.bhajiT-=dt;
+    if(G.bhajiT<=0){
+      if(G.limit-G.t>B.noProcLast){G.bhaji={t:B.timeLimit,last:99};toast(TEXT.ui.argyToast,2.8);sfx.alarm();G.shake=.3}
+      else G.bhajiT=5;
+    }
+    return false;
+  }
+  G.bhaji.t-=dt;
+  if(Math.random()<dt*14)G.fx_.push({x:BHAJI_POS[0]+rnd(-8,8),y:BHAJI_POS[1]-14,vx:rnd(-6,6),vy:-28,t:0,life:.7,col:'#fff',sz:1});
+  const sec=Math.ceil(G.bhaji.t);if(sec<=5&&sec!==G.bhaji.last){G.bhaji.last=sec;beep(1000,.08,'square',.05)}
+  if(Math.hypot(G.px-BHAJI_POS[0],G.py-BHAJI_POS[1])<B.radius){giveBhaji();return false}
+  if(G.bhaji.t<=0){G.bhaji=null;startShame('bhajiLate');return true}
+  return false;
+}
+function giveBhaji(){
+  const B=CFG.bhaji,F=FORMS[G.form];
+  G.bhaji=null;G.bhajiT=rnd(...B.every);G.bhajis++;G.score+=B.value;
+  G.anger=Math.max(0,G.anger-B.calm*F.calm);
+  floatText(G.px,G.py-18,'+'+B.value+' '+TEXT.ui.bhajiGot,'#ffd23a');toast(TEXT.ui.bhajiToast,1.8);sfx.dog();burst(G.px,G.py-8,'#ffd23a',16,80);
+  gainXP(B.value);
+  if(Math.random()<B.shitChance){G.shit=true;G.shitWhy='bhajiBad'}
+}
+function updToilets(dt){
+  const T=CFG.toilets;
+  if(G.trip>0)G.trip-=dt;
+  cv.classList.toggle('trip',G.trip>0);
+  if(G.toiletCd>0)G.toiletCd-=dt;
+  if(G.sf>0){
+    G.sf-=dt;G.sfAcc+=dt*T.eggsLostPerSec;
+    while(G.sfAcc>=1){G.sfAcc--;if(G.score>0){G.score--;floatText(G.px+rnd(-6,6),G.py-14,'-1','#ff4a4a');burst(G.px,G.py-6,'#fff6e0',2,40)}}
+    if(G.sf<=0){G.sf=0;toast(TEXT.ui.sfEnd,1.4)}
+  }else if(G.toiletCd<=0){
+    for(const t of TOILETS)if(Math.hypot(G.px-t[0],G.py-t[1])<T.triggerRadius){
+      G.sf=T.duration;G.sfAcc=0;G.toiletCd=T.cooldown+T.duration;G.cd.whisk=G.cd.cans=G.cd.yoyo=0;
+      toast(TEXT.ui.sfToast,2.2);sfx.form();G.shake=.4;G.flash=.3;break;
+    }
+  }
+}
+const wl=id=>G.sf>0&&G.wp[id]>0?CFG.toilets.weaponLevel:G.wp[id];
 function weapons(dt){
-  const w=G.wp;
+  const w={whisk:wl('whisk'),cans:wl('cans'),yoyo:wl('yoyo')};
   // whisk
   G.cd.whisk-=dt;if(G.swing){G.swing.t+=dt;if(G.swing.t>=G.swing.dur)G.swing=null}
   if(G.cd.whisk<=0){const t=nearest(G.enemies,G.px,G.py-6,CFG.whisk.range);if(t){hit(t,CFG.whisk.dmgBase+CFG.whisk.dmgPerLevel*w.whisk);G.swing={t:0,dur:.28,a0:Math.atan2(t.y-G.py,t.x-G.px)};G.cd.whisk=Math.max(CFG.whisk.cdMin,CFG.whisk.cdStart-CFG.whisk.cdPerLevel*(w.whisk-1));sfx.whisk()}}
@@ -794,11 +896,11 @@ function updShame(dt){
 }
 function endGame(reason){
   if(G.state==='over')return;
-  G.state='over';sfx.die();$('hud').style.display='none';$('bubble').style.display='none';$('toast').style.display='none';$('stick').style.display='none';
+  G.state='over';cv.classList.remove('trip');sfx.die();$('hud').style.display='none';$('bubble').style.display='none';$('toast').style.display='none';$('stick').style.display='none';
   const key='pissteria_best_'+opts.len+'_'+opts.diff;const prev=+store.get(key)||0;const nb=G.score>prev;if(nb)store.set(key,G.score);
-  const [h,r]=TEXT.endings[reason];$('ovhead').textContent=h;$('ovhead').style.color=reason==='time'?'#5fe05f':reason==='shat'?'#c89a5c':'#ff5a5a';$('ovreason').textContent=r;
+  const [h,r]=TEXT.endings[reason];$('ovhead').textContent=h;$('ovhead').style.color=reason==='time'?'#5fe05f':['shat','bhajiLate','bhajiBad'].includes(reason)?'#c89a5c':'#ff5a5a';$('ovreason').textContent=r;
   const mm=Math.floor(G.t/60),ss=String(Math.floor(G.t%60)).padStart(2,'0');
-  $('ovtable').innerHTML=`<tr><td>${TEXT.ui.rowScore}</td><td>${G.score}</td></tr><tr><td>${TEXT.ui.rowFood}</td><td>${G.food}</td></tr><tr><td>${TEXT.ui.rowDog}</td><td>${G.dogs}</td></tr><tr><td>${TEXT.ui.rowSmashed}</td><td>${G.smashed}</td></tr><tr><td>${TEXT.ui.rowKills}</td><td>${G.kills}</td></tr><tr><td>${TEXT.ui.rowBosses}</td><td>${G.bossKills}</td></tr><tr><td>${TEXT.ui.rowLevel}</td><td>${G.level}</td></tr><tr><td>${TEXT.ui.rowForm}</td><td>${FORMS[G.form].name}</td></tr><tr><td>${TEXT.ui.rowTime}</td><td>${mm}:${ss}</td></tr>`;
+  $('ovtable').innerHTML=`<tr><td>${TEXT.ui.rowScore}</td><td>${G.score}</td></tr><tr><td>${TEXT.ui.rowFood}</td><td>${G.food}</td></tr><tr><td>${TEXT.ui.rowDog}</td><td>${G.dogs}</td></tr><tr><td>${TEXT.ui.rowSmashed}</td><td>${G.smashed}</td></tr><tr><td>${TEXT.ui.rowKills}</td><td>${G.kills}</td></tr><tr><td>${TEXT.ui.rowBosses}</td><td>${G.bossKills}</td></tr><tr><td>${TEXT.ui.rowBhajis}</td><td>${G.bhajis}</td></tr><tr><td>${TEXT.ui.rowLevel}</td><td>${G.level}</td></tr><tr><td>${TEXT.ui.rowForm}</td><td>${FORMS[G.form].name}</td></tr><tr><td>${TEXT.ui.rowTime}</td><td>${mm}:${ss}</td></tr>`;
   $('ovrank').textContent=(nb&&G.score>0?TEXT.ui.newBest:'')+TEXT.ui.rank+TEXT.ranks.find(r=>G.score<r[0])[1];
   setTimeout(()=>show('over'),350);
 }
@@ -821,12 +923,13 @@ function render(){
     g.globalAlpha=a;g.fillStyle='#fff';for(let i=0;i<4;i++){const t=G.t*2+i*1.7;g.fillRect(X(p.x)+Math.round(Math.cos(t*1.3+i)*r*.6),Y(p.y)+Math.round(Math.sin(t+i*2)*r*.35),1,1)}
     g.globalAlpha=1;
   }
+  drawLandmarks(g,X,Y);
   // eggs
   for(const e of G.eggs){
     const sx=X(e.x),sy=Y(e.y);if(sx<-12||sx>W+12||sy<-12||sy>H+12)continue;
     const spr=SPR[e.type==='food'?'egg':e.type],bob=Math.round(Math.sin(G.t*4+e.ph)*1);
     g.fillStyle='#0004';g.fillRect(sx-3,sy+3,6,1);
-    if(e.type!=='food'&&((G.t*4|0)%2)){g.fillStyle=e.type==='zinc'?'#8fe0ff':'#ffe27a';g.fillRect(sx-7,sy-9+bob,1,1);g.fillRect(sx+6,sy-5+bob,1,1);g.fillRect(sx+4,sy-11+bob,1,1)}
+    if(e.type!=='food'&&((G.t*4|0)%2)){g.fillStyle=e.type==='zinc'?'#8fe0ff':e.type==='choc'?'#ff9af0':'#ffe27a';g.fillRect(sx-7,sy-9+bob,1,1);g.fillRect(sx+6,sy-5+bob,1,1);g.fillRect(sx+4,sy-11+bob,1,1)}
     g.drawImage(spr,sx-(spr.width>>1),sy-spr.height+3+bob);
   }
   // falling cans
@@ -860,23 +963,54 @@ function render(){
   if(G.sh){const s=G.sh,r=s.t/1.5*s.max;g.fillStyle='rgba(255,60,240,'+Math.max(0,.25-s.t*.08)+')';g.fillRect(0,0,W,H);
     const ccx=X(G.px),ccy=Y(G.py-6);for(let i=0;i<120;i++){const a=i/120*6.283;for(let th=0;th<4;th++){g.fillStyle=th<2?'#fff':'#ff3df0';g.fillRect(Math.round(ccx+Math.cos(a)*(r-th)),Math.round(ccy+Math.sin(a)*(r-th)),1,1)}}
     if(s.t<2.4)txtC(g,'SHAME',W>>1,(H>>1)-30,'#fff',Math.max(2,Math.min(5,(W/60)|0)),'#c0108f')}
+  if(G.sf>0){g.fillStyle='rgba(255,140,40,'+(.08+.05*Math.sin(G.t*14))+')';g.fillRect(0,0,W,H)}
+  if(G.trip>0){const ccx=X(G.px),ccy=Y(G.py-6);g.globalAlpha=.3;for(let i=0;i<6;i++){const r=((G.t*40+i*22)%130);g.fillStyle='hsl('+((G.t*200+i*60)%360|0)+',90%,60%)';for(let k=0;k<70;k++){const a=k/70*6.283;g.fillRect(Math.round(ccx+Math.cos(a)*r),Math.round(ccy+Math.sin(a)*r),3,3)}}g.globalAlpha=1}
   if(G.flash>0){g.fillStyle='rgba(255,255,255,'+Math.min(.5,G.flash)+')';g.fillRect(0,0,W,H)}
   if(G.hp<35&&G.state==='play'){const a=.1+.08*Math.sin(G.t*8);g.fillStyle='rgba(255,0,0,'+a+')';g.fillRect(0,0,W,H)}
+}
+function drawLandmarks(g,X,Y){
+  const busy=G.sf>0||G.toiletCd>0;
+  for(const t of TOILETS){
+    const sx=X(t[0]),sy=Y(t[1]);if(sx<-60||sx>W+60||sy<-40||sy>H+50)continue;
+    for(let i=0;i<5;i++){const bx=sx-30+i*12,by=sy+8;
+      g.fillStyle='#0004';g.fillRect(bx,by+14,10,2);
+      g.fillStyle='#e8eef8';g.fillRect(bx,by,10,3);g.fillStyle='#3a86d8';g.fillRect(bx,by+3,10,11);
+      g.fillStyle='#1c5aa0';g.fillRect(bx+2,by+5,6,9);g.fillStyle=busy?'#ff4444':'#44ff66';g.fillRect(bx+6,by+8,1,2)}
+  }
+  const sx=X(BHAJI_POS[0]),sy=Y(BHAJI_POS[1]);
+  if(sx>-70&&sx<W+70&&sy>-60&&sy<H+50){
+    const on=!!G.bhaji;
+    g.fillStyle='#0004';g.fillRect(sx-17,sy+1,34,3);
+    g.fillStyle=on?'#a8672c':'#4a3c30';g.fillRect(sx-14,sy-12,28,13);
+    g.fillStyle=on?'#f0c060':'#2a2018';g.fillRect(sx-12,sy-9,24,6);
+    if(on){g.fillStyle='#ffd23a';for(let i=0;i<4;i++)g.fillRect(sx-9+i*6,sy-8,3,2)}
+    for(let i=0;i<8;i++){g.fillStyle=(i%2)?(on?'#fff':'#8a8a8a'):(on?'#ff7a1a':'#5a4a3a');g.fillRect(sx-16+i*4,sy-18,4,6)}
+    g.fillStyle='#2a140a';g.fillRect(sx-30,sy-30,60,10);
+    txtC(g,TEXT.ui.bhajiName,sx,sy-28,on?'#ffd23a':'#8a7a68');
+    if(!on)txtC(g,'CLOSED',sx,sy-7,'#a89a88');
+    else{
+      const pr=CFG.bhaji.radius+Math.round(Math.sin(G.t*8)*3);g.fillStyle='#ffd23a';
+      for(let i=0;i<44;i++){const a=i/44*6.283;g.fillRect(Math.round(sx+Math.cos(a)*pr),Math.round(sy-6+Math.sin(a)*pr*.8),2,2)}
+      txtC(g,'!',sx,sy-46-Math.round(Math.abs(Math.sin(G.t*6))*4),'#ff3b3b',2,'#000');
+    }
+  }
 }
 function drawPlayer(g,X,Y){
   const F=FORMS[G.form];if(G.inv>0&&((G.t*20)|0)%2&&G.state==='play')return;
   const sx=X(G.px),sy=Y(G.py),bob=G.moving?(Math.floor(G.walk)&1):0,spr=PSPR[G.form][G.moving?(Math.floor(G.walk)&1):1];
   if(F.magnet){const r=F.magnet,ph=G.t*40;g.fillStyle=G.form===3?'#ff3b3b88':'#ffd23a77';for(let i=0;i<48;i++){const a=i/48*6.283+ph*.02;g.fillRect(Math.round(sx+Math.cos(a)*r),Math.round(sy-6+Math.sin(a)*r),1,1)}}
   g.fillStyle='#0005';g.fillRect(sx-5,sy-1,10,2);
+  if(G.sf>0){const wob=Math.round(Math.sin(G.t*20)*1);for(const sd of [-1,1])for(let i=0;i<3;i++){const x0=sd<0?sx-14-i%2:sx+8+i%2,y0=sy-13+i*3+wob;g.fillStyle='#8a2a1a';g.fillRect(x0,y0,7,3);g.fillStyle='#c9503a';g.fillRect(x0,y0,7,2);g.fillStyle='#e8806a';g.fillRect(x0+1,y0,3,1)}}
   g.save();g.translate(sx,sy-15-(bob?1:0));if(G.fx<0){g.translate(12,0);g.scale(-1,1)}g.drawImage(spr,G.fx<0?12-12:0,0);g.restore();
 }
 function markers(g,cx,cy){
   const bs=nearest(G.enemies.filter(e=>e.boss),G.px,G.py,1e9);
   if(bs){const sx=bs.x-cx,sy=bs.y-cy;if(!(sx>10&&sx<W-10&&sy>34&&sy<H-10)){const dx=sx-W/2,dy=sy-H/2,t=Math.min((W/2-10)/Math.abs(dx||1e-3),(H/2-26)/Math.abs(dy||1e-3)),mx=Math.round(W/2+dx*t),my=Math.round(H/2+dy*t);g.fillStyle=(G.t*4|0)%2?'#ff3b3b':'#7a1020';g.fillRect(mx-5,my-7,10,14);txtC(g,'!',mx+1,my-3,'#fff')}}
-  const seen={food:null,dog:null,zinc:null};
+  if(G.bhaji){const sx=BHAJI_POS[0]-cx,sy=BHAJI_POS[1]-cy;if(!(sx>10&&sx<W-10&&sy>34&&sy<H-10)){const dx=sx-W/2,dy=sy-H/2,t=Math.min((W/2-10)/Math.abs(dx||1e-3),(H/2-26)/Math.abs(dy||1e-3)),mx=Math.round(W/2+dx*t),my=Math.round(H/2+dy*t);g.fillStyle=(G.t*4|0)%2?'#ffd23a':'#ff7a1a';g.fillRect(mx-6,my-7,12,14);txtC(g,'B',mx+1,my-3,'#2a140a')}}
+  const seen={food:null,dog:null,zinc:null,choc:null};
   for(const e of G.eggs){const d=(e.x-G.px)**2+(e.y-G.py)**2;if(!seen[e.type]||d<seen[e.type].d)seen[e.type]={e,d}}
-  for(const k of ['food','dog','zinc']){
-    const s=seen[k];if(!s)continue;if(k==='zinc'&&G.hp>=G.maxhp*CFG.eggs.zincOnlyShowBelow)continue;
+  for(const k of ['food','dog','zinc','choc']){
+    const s=seen[k];if(!s)continue;if(k==='zinc'&&G.hp>=G.maxhp*CFG.eggs.zincOnlyShowBelow)continue;if(k==='choc')continue;
     const sx=s.e.x-cx,sy=s.e.y-cy;if(sx>10&&sx<W-10&&sy>34&&sy<H-10)continue;
     const dx=sx-W/2,dy=sy-H/2,t=Math.min((W/2-10)/Math.abs(dx||1e-3),(H/2-26)/Math.abs(dy||1e-3));
     const mx=Math.round(W/2+dx*t),my=Math.round(H/2+dy*t),spr=SPR[k==='food'?'egg':k];
@@ -895,6 +1029,11 @@ function updHUD(){
   const a=$('angf');a.style.width=Math.min(100,G.anger)+'%';a.style.background=F.col;
   $('formname').textContent=F.name+(G.form===3?' !!':'');
   $('angbar').classList.toggle('hot',G.anger>82);
+  {let h='';
+   if(G.bhaji)h+='<div class="chip red">'+TEXT.ui.argyChip+' '+Math.ceil(G.bhaji.t)+'S</div>';
+   if(G.sf>0)h+='<div class="chip org">'+TEXT.ui.sfChip+' '+Math.ceil(G.sf)+'S</div>';
+   if(G.trip>0)h+='<div class="chip pur">'+TEXT.ui.chocChip+' '+Math.ceil(G.trip)+'S</div>';
+   const c=$('chips');if(c.dataset.h!==h){c.dataset.h=h;c.innerHTML=h}}
   [...$('angbar').querySelectorAll('.pips b')].forEach((b,i)=>b.classList.toggle('on',i<=G.form));
 }
 
@@ -917,7 +1056,7 @@ function togglePause(){
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&G&&G.state==='play')togglePause()});
 $('pausebtn').onclick=togglePause;$('resumebtn').onclick=togglePause;
 $('mutebtn').onclick=()=>{muted=!muted;$('mutebtn').textContent='SOUND: '+(muted?'OFF':'ON')};
-$('quitbtn').onclick=()=>{hide('pause');G.state='over';$('hud').style.display='none';$('bubble').style.display='none';showMenu()};
+$('quitbtn').onclick=()=>{cv.classList.remove('trip');hide('pause');G.state='over';$('hud').style.display='none';$('bubble').style.display='none';showMenu()};
 $('howbtn').onclick=()=>{hide('menu');show('how')};$('howback').onclick=()=>{hide('how');show('menu')};
 function startPressed(){
   if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)()}catch(e){}}
