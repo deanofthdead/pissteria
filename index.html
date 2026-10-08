@@ -201,10 +201,10 @@ const CFG={
 
   /* ---- eggs & pickups ---- */
   eggs:{
-    startCount:14,              // food eggs on the map at the start
-    targetBase:16,              // food eggs kept on the map...
-    targetPerForm:4,            // ...plus this per form reached
-    spawnDistMin:90,            // new eggs appear this far from Pork...
+    startCount:0,               // food eggs lying around at the start (0: they only come from drops now)
+    targetBase:0,               // food eggs kept topped up on the map (0 = none appear on their own)...
+    targetPerForm:0,            // ...plus this per form reached
+    spawnDistMin:90,            // (only used if the numbers above are >0) new eggs appear this far from Pork...
     spawnDistMax:420,           // ...to this far
     magnetPull:140,             // px/sec eggs fly towards you when magnetised
     dogEvery:[22,34],           // sec between dog eggs [min,max]
@@ -310,6 +310,16 @@ const CFG={
     bannerTime:4,               // sec the banner stays up
   },
 
+  /* ---- food egg drops: the so called left drop them when they die ----
+     Each kill rolls the dozen first, then the half dozen, then the single egg. */
+  drops:{
+    dozen: {chance:1/50, count:12},
+    six:   {chance:1/20, count:6},
+    single:{chance:1/3,  count:1},
+    lifetime:35,                // sec a dropped egg stays on the ground
+    spread:6,                   // how far a pile scatters (px, grows with the pile size)
+  },
+
   /* ---- map pickups ---- */
   items:{
     mint:  {every:[75,110], lifetime:70, bossDamageFrac:.5},   // Kendal Mint Cake: wipes everything in view (bosses lose this fraction of max hp instead). Pals are immune.
@@ -376,6 +386,7 @@ const CFG={
     speed:13,                   // px/sec (normal so called left are 16+)
     contactDmg:14,              // per hit
     demon:{enabled:true, at:[.2,.35]},   // Battle Jacket Sleep Paralysis Demon: once per round, at this fraction of the round [min,max]
+    foodEggDrops:12,            // food eggs a boss ALWAYS drops (instead of the normal roll)
     dogEggDrops:1,              // dog eggs dropped when one dies (if you win)
   },
 
@@ -951,7 +962,22 @@ function toast(s,dur=1.6,big){const b=$('toast');b.textContent=s;b.style.display
 function hit(e,d,nk){
   e.hp-=d;e.flash=.1;
   if(!e.boss&&!nk){const dx=e.x-G.px,dy=e.y-G.py,l=Math.hypot(dx,dy)||1;e.x+=dx/l*3;e.y+=dy/l*3}
-  if(e.hp<=0&&!e.dead){e.dead=true;G.kills++;burst(e.x,e.y,'#a23be8',e.boss?30:5,e.boss?110:45);if(e.boss)bossDown(e)}
+  if(e.hp<=0&&!e.dead){e.dead=true;G.kills++;burst(e.x,e.y,'#a23be8',e.boss?30:5,e.boss?110:45);dropEggs(e);if(e.boss)bossDown(e)}
+}
+function dropEggs(e){
+  const D=CFG.drops;let n=0;
+  if(e.boss)n=CFG.bosses.foodEggDrops;
+  else if(Math.random()<D.dozen.chance)n=D.dozen.count;
+  else if(Math.random()<D.six.chance)n=D.six.count;
+  else if(Math.random()<D.single.chance)n=D.single.count;
+  if(!n)return;
+  const sp=D.spread+Math.sqrt(n)*3;
+  for(let i=0;i<n;i++){
+    const a=Math.random()*6.283,r=n===1?0:rnd(2,sp);let x=e.x+Math.cos(a)*r,y=e.y+Math.sin(a)*r;
+    for(let k=0;k<6&&!inPoly(x,y);k++){x=(x+G.px)/2;y=(y+G.py)/2}   // enemies can die out in the forest: pull the egg back onto the map
+    G.eggs.push({x,y,type:'food',ph:Math.random()*6,life:D.lifetime});
+  }
+  if(n>1)floatText(e.x,e.y-10,'+'+n,'#ffe27a');
 }
 function bossDown(e){
   G.bossKills++;G.shake=.4;sfx.lvl();toast(TEXT.ui.bossDown,1.8);
