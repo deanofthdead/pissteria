@@ -302,8 +302,7 @@ const CFG={
     enabled:true,
     at:[.4,.7],                 // when it hits, as a fraction of the round length [min,max]
     noSpawnLast:20,             // never in the last N sec
-    pals:true,                  // Dean, Rob, Ed, Phil and Ry all spawn at once (ignores maxAlive)
-    demon:true,                 // the Battle Jacket Sleep Paralysis Demon arrives (he only ever appears here)
+    pals:true,                  // Dean, Rob, Ed, Phil and Ry all spawn at once (ignores maxAlive). Just the pals.
     bannerTime:4,               // sec the banner stays up
   },
 
@@ -347,6 +346,7 @@ const CFG={
     hpPerBoss:150,              // extra hp for each later boss
     speed:13,                   // px/sec (normal so called left are 16+)
     contactDmg:14,              // per hit
+    demon:{enabled:true, at:[.2,.35]},   // Battle Jacket Sleep Paralysis Demon: once per round, at this fraction of the round [min,max]
     dogEggDrops:1,              // dog eggs dropped when one dies (if you win)
   },
 
@@ -379,7 +379,7 @@ const TEXT={
     "BREAKS 1 IN 4 FOOD EGGS!",
   ],
 
-  // the demon only turns up for MESHUGGAH ANNOUNCED (see CFG.meshuggah)
+  // the demon turns up once per round (see CFG.bosses.demon), separate from the normal boss rotation
   demon:{name:"BATTLE JACKET SLEEP PARALYSIS DEMON",look:'goth'},
 
   // boss order (loops). look: 'lefty' = crowned purple-haired boss, 'goth' = the jacket demon
@@ -701,7 +701,7 @@ function newGame(){
     wp:{whisk:1,cans:0,yoyo:0,vicks:0},buff:{jacket:0,elec:0,mush:0},
     cd:{whisk:1,cans:1.5,yoyo:1,vicks:0},swing:null,yo:null,
     enemies:[],eggs:[],puddles:[],cans:[],fx_:[],texts:[],
-    spawnAcc:0,eggT:0,dogT:rnd(...CFG.eggs.dogEvery)*.6,zincT:rnd(...CFG.eggs.zincEvery)*.8,sayT:5,meshAt:rnd(...CFG.meshuggah.at)*opts.len*60,meshDone:false,pursuers:[],purT:rnd(...CFG.pursuers.firstIn),pGrace:0,slit:0,frozen:0,bhaji:null,bhajiT:rnd(...CFG.bhaji.firstIn),bhajis:0,sf:0,sfAcc:0,toiletCd:0,shitWhy:'shat',trip:0,nextBoss:CFG.bosses.firstAt,bossN:0,bossKills:0,slow:0,bubbleT:0,toastT:0,sh:null,reason:''};
+    spawnAcc:0,eggT:0,dogT:rnd(...CFG.eggs.dogEvery)*.6,zincT:rnd(...CFG.eggs.zincEvery)*.8,sayT:5,meshAt:rnd(...CFG.meshuggah.at)*opts.len*60,demonAt:rnd(...CFG.bosses.demon.at)*opts.len*60,demonDone:false,meshDone:false,pursuers:[],purT:rnd(...CFG.pursuers.firstIn),pGrace:0,slit:0,frozen:0,bhaji:null,bhajiT:rnd(...CFG.bhaji.firstIn),bhajis:0,sf:0,sfAcc:0,toiletCd:0,shitWhy:'shat',trip:0,nextBoss:CFG.bosses.firstAt,bossN:0,bossKills:0,slow:0,bubbleT:0,toastT:0,sh:null,reason:''};
   for(let i=0;i<CFG.eggs.startCount;i++)spawnEgg('food',60,CFG.eggs.spawnDistMax);
   cv.classList.remove('trip');refreshItems();hide('menu');hide('over');hide('pause');hide('levelup');
   $('hud').style.display='block';updHUD();
@@ -749,7 +749,6 @@ function makePursuer(type,angle){
 function meshuggah(){
   const M=CFG.meshuggah;G.meshDone=true;
   toast(TEXT.ui.meshToast,M.bannerTime,true);sfx.alarm();sfx.form();G.shake=.8;G.flash=.5;
-  if(M.demon)spawnBoss(TEXT.demon,true);
   if(M.pals){
     const have=new Set(G.pursuers.map(q=>q.type)),base=Math.random()*6.283;let k=0;
     for(const t of PUR_TYPES){if(have.has(t)||(t==='ed'&&!ownedWeapons().length))continue;makePursuer(t,base+k++*1.2566)}
@@ -891,6 +890,7 @@ function update(dt){
   G.spawnAcc+=dt*rate;
   while(G.spawnAcc>=1){G.spawnAcc--;if(G.enemies.length<CFG.enemies.max)spawnEnemy()}
   updPursuers(dt);
+  if(CFG.bosses.demon.enabled&&!G.demonDone&&G.t>=G.demonAt&&G.limit-G.t>CFG.bosses.noSpawnLast){G.demonDone=true;spawnBoss(TEXT.demon)}
   if(CFG.meshuggah.enabled&&!G.meshDone&&G.t>=G.meshAt&&G.limit-G.t>CFG.meshuggah.noSpawnLast)meshuggah();
   if(G.t>=G.nextBoss&&G.limit-G.t>CFG.bosses.noSpawnLast&&spawnBoss())G.nextBoss+=CFG.bosses.every;
   const jr=1-Math.min(CFG.buffs.jacket.max,CFG.buffs.jacket.perLevel*G.buff.jacket);
