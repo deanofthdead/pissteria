@@ -358,7 +358,7 @@ const CFG={
     enabled:true,
     file:'bleed-8bit.mid',      // loops forever while a round is running
     volume:.10,                 // 0-1
-    squareVol:.55, triangleVol:.9, kickVol:.9, snareVol:.5, hatVol:.25,   // per-voice mix
+    squareVol:.55, triangleVol:.9, kickVol:.9, snareVol:.5, hatVol:.25, cymbalVol:.3,   // per-voice mix
   },
 };
 const FORMS=CFG.forms;
@@ -716,9 +716,17 @@ function parseMidi(buf){
 function musicNote(n,t0){
   const M=CFG.music,g=AC.createGain(),dst=MUSIC.gain;
   if(n.ch===9){
-    if(n.n===36){const o=AC.createOscillator();o.frequency.setValueAtTime(150,t0);o.frequency.exponentialRampToValueAtTime(40,t0+.12);g.gain.setValueAtTime(M.kickVol*n.v,t0);g.gain.exponentialRampToValueAtTime(.001,t0+.16);o.connect(g).connect(dst);o.start(t0);o.stop(t0+.18)}
-    else{const src=AC.createBufferSource();src.buffer=MUSIC.noise;const f=AC.createBiquadFilter();f.type='highpass';f.frequency.value=n.n===38?1200:7000;
-      const len=n.n===38?.13:.045,vol=(n.n===38?M.snareVol:M.hatVol)*n.v;g.gain.setValueAtTime(vol,t0);g.gain.exponentialRampToValueAtTime(.001,t0+len);src.connect(f).connect(g).connect(dst);src.start(t0);src.stop(t0+len+.02)}
+    const k=n.n;
+    if(k===35||k===36){const o=AC.createOscillator();o.frequency.setValueAtTime(150,t0);o.frequency.exponentialRampToValueAtTime(40,t0+.12);g.gain.setValueAtTime(M.kickVol*n.v,t0);g.gain.exponentialRampToValueAtTime(.001,t0+.16);o.connect(g).connect(dst);o.start(t0);o.stop(t0+.18)}
+    else if(k>=41&&k<=50&&k!==42&&k!==44&&k!==46&&k!==49){const o=AC.createOscillator();const f0=k>=47?220:k>=45?170:130;o.frequency.setValueAtTime(f0,t0);o.frequency.exponentialRampToValueAtTime(f0*.4,t0+.2);g.gain.setValueAtTime(M.kickVol*.8*n.v,t0);g.gain.exponentialRampToValueAtTime(.001,t0+.22);o.connect(g).connect(dst);o.start(t0);o.stop(t0+.25)}
+    else{
+      let hp=7000,len=.045,vol=M.hatVol;
+      if(k===37||k===38||k===40){hp=1200;len=.13;vol=M.snareVol}
+      else if(k===46){hp=6000;len=.2}
+      else if(k>=49){hp=4500;len=.45;vol=M.cymbalVol}
+      const src=AC.createBufferSource();src.buffer=MUSIC.noise;const f=AC.createBiquadFilter();f.type='highpass';f.frequency.value=hp;
+      g.gain.setValueAtTime(vol*n.v,t0);g.gain.exponentialRampToValueAtTime(.001,t0+len);src.connect(f).connect(g).connect(dst);src.start(t0);src.stop(t0+len+.02)
+    }
     return;
   }
   const o=AC.createOscillator();o.type=n.ch===1?'triangle':'square';o.frequency.value=440*Math.pow(2,(n.n-69)/12);
