@@ -37,6 +37,7 @@ html,body{margin:0;height:100%;background:var(--bg);overflow:hidden;font-family:
 .chip.red{border-color:#ff3b3b;color:#ff9a9a;animation:pulse .5s steps(2) infinite}
 .chip.org{border-color:#ff9a3c;color:#ffd0a0}
 .chip.ice{border-color:#6ad0ff;color:#c0ecff}
+.chip.ora{border-color:#ff8a1a;color:#ffc080}
 .chip.gry{border-color:#aaa;color:#ddd}
 .chip.pur{border-color:#ff5fe0;color:#ffc0f4}
 #chips{position:absolute;left:50%;transform:translateX(-50%);top:calc(150px + env(safe-area-inset-top));display:flex;flex-direction:column;gap:4px;align-items:center}
@@ -122,6 +123,7 @@ td{padding:0 8px}td:last-child{color:var(--yl);text-align:right}
   ▪ <b style="color:#ff8a8a">ARGY BHAJI</b> HITS AT RANDOM: GET TO <b style="color:#ffd23a">BECKY'S BHAJIS</b> IN 20S OR YOU SHIT YOURSELF. A BHAJI = 50 FOOD EGGS. (1 IN 50 MAKES YOU SHIT YOURSELF ANYWAY.)<br>
   ▪ STAND NEAR THE <b style="color:#ffd0a0">TOILETS</b> FOR 10S OF SAUSAGE FINGERS: ALL WEAPONS LV 50, BUT YOU DROP 2 FOOD EGGS A SECOND.<br>
   ▪ <b style="color:#fff">THE PALS</b> CAN'T BE KILLED AND DO NO DAMAGE. THEY JUST CHASE YOU: <b>DEAN</b> (BEER IN THE FACE: FROZEN), <b>ROB</b> (MUSHROOM CHOCOLATE: TRIPPY, CONTROLS REVERSED), <b>ED</b> (NICKS A WEAPON: FETCH IT FROM THE OTHER SIDE OF THE MAP), <b>PHIL</b> (ARGY BHAJI, NOW), <b>RY</b> (TUNNEL VISION). RUN.<br>
+  ▪ THE <b style="color:#ff9a3a">BAR</b> OPENS ONCE A GAME. GET THERE IN TIME FOR AN APEROL SPRITZ: YOU CALM DOWN ONE FORM.<br>
   ▪ SURVIVE TO THE TIME LIMIT. YOU'LL SHIT YOURSELF THEN TOO.</p>
   <button class="btn" id="howback">BACK</button>
 </div>
@@ -306,6 +308,25 @@ const CFG={
     bannerTime:4,               // sec the banner stays up
   },
 
+  /* ---- Dean's lost sunglasses: super rare, only some games ---- */
+  sunglasses:{
+    chance:.2,                  // chance a given game has them at all
+    at:[.25,.8],                // when they turn up, as a fraction of the round [min,max]
+    lifetime:150,               // sec they stay on the map
+    spawnDistMin:350, spawnDistMax:750,   // how far from Pork they appear
+    value:150,                  // food eggs
+    calm:30,                    // anger removed (x form calm)
+  },
+
+  /* ---- the bar: opens once a game. Get there in time for an Aperol Spritz ---- */
+  bar:{
+    at:[.3,.7],                 // when it opens, as a fraction of the round [min,max]
+    openFor:30,                 // sec it stays open
+    noOpenLast:20,              // never in the last N sec
+    radius:30,                  // how close counts as at the bar
+    angerAfter:35,              // anger bar after the spritz (you drop back one form; at the first form it just empties the bar)
+  },
+
   /* ---- ARGY BHAJI event ---- */
   bhaji:{
     firstIn:[70,100],           // sec until the first alert [min,max]
@@ -435,7 +456,10 @@ const TEXT={
     edNothing:'ED CAME TO ROB YOU. YOU HAD NOTHING.', edGotBack:'GOT YOUR {weapon} BACK!',
     philToast:'PHIL STARTED SOME ARGY BARGY!',
     ryToast:'RY GOT THE PENKNIFE OUT.\nTUNNEL VISION!',
-    rowBhajis:'BHAJIS EATEN',
+    rowBhajis:'BHAJIS EATEN', rowShades:'SUNGLASSES FOUND',
+    shadesToast:"DEAN'S LOST SUNGLASSES\nARE ON THE MAP!", shadesGot:"DEAN'S LOST SUNGLASSES!\n+{n} FOOD EGGS", shadesFloat:'SUNGLASSES',
+    barOpenToast:'THE BAR IS OPEN!\nGET THERE FOR AN APEROL SPRITZ!', barChip:'BAR OPEN', barClosed:'THE BAR CLOSED.', barName:'THE BAR',
+    spritzToast:'APEROL SPRITZ!\nCALMED DOWN TO {form}', spritzNone:'APEROL SPRITZ!\nCOMPLETELY CALM',
     score:'FOOD EGGS',                 // HUD counter (score = food eggs, dog eggs count extra)
     bestLine:'FOOD EGGS',
     rowScore:'FOOD EGG SCORE', rowFood:'FOOD EGGS FOUND', rowDog:'DOG EGGS FOUND', rowSmashed:'FOOD EGGS SMASHED',
@@ -523,6 +547,8 @@ const ESPR=EPAL.map(c=>[["...dd..dd..."],["..dd....dd.."]].map(l=>mk(EROWS.conca
 const SPR={
  egg:mk([".eeee.","eEEEEe","eEwEEe","eEEEEe","eEEEEe","eEEEEe",".eEEe.","..ee.."],{e:'#c8a060',E:'#fff6e0',w:'#fff'}),
  dog:mk([".....bb...","....bBBb..","...bBBBBb.","..bbbbbbbb",".bBBBBBBBb","bBBBwBBBBb","bBBBBBBBBb",".bbbbbbbbb"],{b:'#4a2a10',B:'#8a5a2c',w:'#c89a5c'}),
+ shades:mk(["kkkkkkkkkkkkkk","kBBBBBkkBBBBBk","kBwBBBkkBwBBBk","kBBBBBkkBBBBBk",".kBBBk..kBBBk.","..kkk....kkk.."],{k:'#0a0a0a',B:'#23304f',w:'#9ab4d0'}),
+ spritz:mk(["wwwwwww","wOOOOow","wOOoOOw","wOOOOOw",".wOOOw.","..wOw..","..wOw..","..www.."],{w:'#e8eef8',O:'#ff8a1a',o:'#ffd23a'}),
  zinc:mk(["..gggg..",".gggggg.",".bbbbbb.",".bwwwwb.",".bbbwbb.",".bbwbbb.",".bwwwwb.",".bbbbbb.",".dddddd."],{g:'#ccd',b:'#2a7fd4',w:'#fff',d:'#14407a'}),
  treeDark:mk(["....oooo....","..ooGGGGoo..",".oGGLGGGGGo.","oGGGGGLGGGGo","oGLGGGGGGLGo","oGGGGGGLGGGo",".oGGLGGGGGo.","..ooGGGGoo..","....oooo....","....tt......","....tt......"].map(r=>r.padEnd(12,'.')),{o:'#0b2410',G:'#1b4d20',L:'#276a2a',t:'#2a1a0a'}),
  tree:mk(["....oooo....","..ooGGGGoo..",".oGGLGGGGGo.","oGGGGGLGGGGo","oGLGGGGGGLGo","oGGGGGGLGGGo",".oGGLGGGGGo.","..ooGGGGoo..","....oooo....","....tt......","....tt......"].map(r=>r.padEnd(12,'.')),{o:'#14401a',G:'#2f8a2a',L:'#52b83c',t:'#5a3a1a'}),
@@ -562,6 +588,7 @@ const POLY=[[100,545],[190,412],[440,392],[690,190],[860,90],[1040,25],[1290,85]
 const HUB=P(980,465);
 const START=P(560,725);
 const BHAJI_POS=P(790,730);                       // Becky's Bhajis, next to the food traders
+const BAR_POS=P(330,560);                        // the bar (VIP side of the arena)
 const TOILETS=[P(1060,640),P(905,300)];           // two toilet blocks
 const LAKE={x:P(1165,415)[0],y:P(1165,415)[1],rx:Math.round(86*KX),ry:Math.round(50*KY)};
 function inPoly(x,y){let c=false;for(let i=0,j=POLY.length-1;i<POLY.length;j=i++){const a=POLY[i],b=POLY[j];if((a[1]>y)!==(b[1]>y)&&x<(b[0]-a[0])*(y-a[1])/(b[1]-a[1])+a[0])c=!c}return c}
@@ -654,6 +681,7 @@ function buildWorld(){
   // pads under the toilets + Becky's stand (the sprites themselves are drawn live)
   TOILETS.forEach(t=>{g.fillStyle='#8a7a52';g.fillRect(t[0]-41,t[1]-6,82,44);g.fillStyle='#cdb98a';g.fillRect(t[0]-39,t[1]-4,78,40);txtC(g,TEXT.ui.toiletLabel,t[0],t[1]-1,'#3a2a10')});
   {const b=BHAJI_POS;g.fillStyle='#8a7a52';g.fillRect(b[0]-37,b[1]-34,74,46);g.fillStyle='#cdb98a';g.fillRect(b[0]-35,b[1]-32,70,42)}
+  {const b=BAR_POS;g.fillStyle='#8a7a52';g.fillRect(b[0]-37,b[1]-34,74,46);g.fillStyle='#cdb98a';g.fillRect(b[0]-35,b[1]-32,70,42)}
   // dense forest all around the festival (not walkable, just so the edge of the map never looks like a black void)
   for(let y=-WM;y<WH+WM;y+=8){for(let x=-WM;x<WW+WM;x+=10){
     const px=x+(R()*8|0),py=y+(R()*6|0);
@@ -792,7 +820,7 @@ function newGame(){
     wp:{whisk:1,cans:0,yoyo:0,vicks:0},buff:{jacket:0,elec:0,mush:0},
     cd:{whisk:1,cans:1.5,yoyo:1,vicks:0},swing:null,yo:null,
     enemies:[],eggs:[],puddles:[],cans:[],fx_:[],texts:[],
-    spawnAcc:0,eggT:0,dogT:rnd(...CFG.eggs.dogEvery)*.6,zincT:rnd(...CFG.eggs.zincEvery)*.8,sayT:5,meshAt:rnd(...CFG.meshuggah.at)*opts.len*60,demonAt:rnd(...CFG.bosses.demon.at)*opts.len*60,demonDone:false,meshDone:false,pursuers:[],purT:rnd(...CFG.pursuers.firstIn),pGrace:0,slit:0,frozen:0,bhaji:null,bhajiT:rnd(...CFG.bhaji.firstIn),bhajis:0,sf:0,sfAcc:0,toiletCd:0,shitWhy:'shat',trip:0,nextBoss:CFG.bosses.firstAt,bossN:0,bossKills:0,slow:0,bubbleT:0,toastT:0,sh:null,reason:''};
+    spawnAcc:0,eggT:0,dogT:rnd(...CFG.eggs.dogEvery)*.6,zincT:rnd(...CFG.eggs.zincEvery)*.8,sayT:5,meshAt:rnd(...CFG.meshuggah.at)*opts.len*60,sunAt:Math.random()<CFG.sunglasses.chance?rnd(...CFG.sunglasses.at)*opts.len*60:null,sunDone:false,shades:0,barAt:rnd(...CFG.bar.at)*opts.len*60,bar:null,barDone:false,demonAt:rnd(...CFG.bosses.demon.at)*opts.len*60,demonDone:false,meshDone:false,pursuers:[],purT:rnd(...CFG.pursuers.firstIn),pGrace:0,slit:0,frozen:0,bhaji:null,bhajiT:rnd(...CFG.bhaji.firstIn),bhajis:0,sf:0,sfAcc:0,toiletCd:0,shitWhy:'shat',trip:0,nextBoss:CFG.bosses.firstAt,bossN:0,bossKills:0,slow:0,bubbleT:0,toastT:0,sh:null,reason:''};
   for(let i=0;i<CFG.eggs.startCount;i++)spawnEgg('food',60,CFG.eggs.spawnDistMax);
   cv.classList.remove('trip');refreshItems();hide('menu');hide('over');hide('pause');hide('levelup');
   $('hud').style.display='block';updHUD();
@@ -802,7 +830,7 @@ function newGame(){
 function spawnEgg(type,dmin,dmax){
   for(let i=0;i<14;i++){
     const a=Math.random()*6.283,r=rnd(dmin,dmax),x=G.px+Math.cos(a)*r,y=G.py+Math.sin(a)*r;
-    if(inPoly(x,y)&&inPoly(x+10,y)&&inPoly(x-10,y)&&!inLake(x,y)){G.eggs.push({x,y,type,ph:Math.random()*6,life:type==='food'?999:CFG.eggs.rareLifetime});return true}
+    if(inPoly(x,y)&&inPoly(x+10,y)&&inPoly(x-10,y)&&!inLake(x,y)){G.eggs.push({x,y,type,ph:Math.random()*6,life:type==='food'?999:type==='shades'?CFG.sunglasses.lifetime:CFG.eggs.rareLifetime});return true}
   }
   return false;
 }
@@ -970,10 +998,12 @@ function update(dt){
     let dx=G.px-e.x,dy=G.py-(e.y);const d=Math.hypot(dx,dy);
     if(F.magnet&&(e.type==='food'||e.type==='dog')&&d<F.magnet){const k=CFG.eggs.magnetPull*dt/(d||1);e.x+=dx*k;e.y+=dy*k}
     if(d<CFG.player.pickupRadius){G.eggs.splice(i,1);collect(e);continue}
-    if(e.type!=='weapon'&&(e.life<=0||d>900))G.eggs.splice(i,1);
+    if(e.type!=='weapon'&&(e.life<=0||(e.type!=='shades'&&d>900)))G.eggs.splice(i,1);
   }
   if(updBhaji(dt))return;
   updToilets(dt);
+  updBar(dt);
+  if(G.sunAt!==null&&!G.sunDone&&G.t>=G.sunAt){G.sunDone=true;if(spawnEgg('shades',CFG.sunglasses.spawnDistMin,CFG.sunglasses.spawnDistMax)){toast(TEXT.ui.shadesToast,2.6);sfx.zinc()}}
   if(G.shit){G.shit=false;startShame(G.shitWhy||'shat');return}
   if(G.pend>0){openLevelUp();return}
   // enemies
@@ -1012,6 +1042,11 @@ function update(dt){
 function collect(e){
   const F=FORMS[G.form];
   if(e.type==='zinc'){G.hp=G.maxhp;sfx.zinc();floatText(G.px,G.py-18,TEXT.ui.zinc,'#6ad0ff');burst(G.px,G.py-8,'#6ad0ff',12,60);return}
+  if(e.type==='shades'){
+    const V=CFG.sunglasses.value;G.score+=V;G.shades++;G.anger=Math.max(0,G.anger-CFG.sunglasses.calm*F.calm);
+    floatText(G.px,G.py-18,'+'+V+' '+TEXT.ui.shadesFloat,'#9ab4ff');toast(TEXT.ui.shadesGot.replace('{n}',V),2.6);sfx.dog();burst(G.px,G.py-8,'#9ab4ff',18,80);
+    gainXP(V);return;
+  }
   if(e.type==='weapon'){G.wp[e.wid]=Math.max(G.wp[e.wid],e.lvl);refreshItems();toast(TEXT.ui.edGotBack.replace('{weapon}',ITEMS[e.wid].n),1.8);sfx.lvl();burst(G.px,G.py-8,'#fff',14,70);return}
   if(F.smash&&Math.random()<F.smash){G.smashed++;sfx.smash();floatText(G.px,G.py-18,TEXT.ui.smashed,'#ff4a4a');burst(e.x,e.y,'#ffd23a',10,70);return}
   const dog=e.type==='dog',val=dog?CFG.eggs.dogValue:1;
@@ -1030,6 +1065,22 @@ function gainXP(v){
   }
 }
 /* ---------- Argy Bhaji / toilets ---------- */
+function updBar(dt){
+  const B=CFG.bar;
+  if(!G.bar){
+    if(!G.barDone&&G.t>=G.barAt&&G.limit-G.t>B.noOpenLast){G.bar={t:B.openFor};G.barDone=true;toast(TEXT.ui.barOpenToast,2.8);sfx.zinc()}
+    return;
+  }
+  G.bar.t-=dt;
+  if(Math.hypot(G.px-BAR_POS[0],G.py-BAR_POS[1])<B.radius){giveSpritz();G.bar=null;return}
+  if(G.bar.t<=0){G.bar=null;toast(TEXT.ui.barClosed,1.6)}
+}
+function giveSpritz(){
+  const B=CFG.bar;
+  if(G.form>0){G.form--;G.anger=B.angerAfter;toast(TEXT.ui.spritzToast.replace('{form}',FORMS[G.form].name),2.6)}
+  else{G.anger=0;toast(TEXT.ui.spritzNone,2.2)}
+  G.flash=.3;sfx.zinc();burst(G.px,G.py-8,'#ff8a1a',18,80);burst(G.px,G.py-8,'#ffd23a',8,60);
+}
 function updBhaji(dt){
   const B=CFG.bhaji;
   if(!G.bhaji){
@@ -1147,7 +1198,7 @@ function endGame(reason){
   const key='pissteria_best_'+opts.len+'_'+opts.diff;const prev=+store.get(key)||0;const nb=G.score>prev;if(nb)store.set(key,G.score);
   const [h,r]=TEXT.endings[reason];$('ovhead').textContent=h;$('ovhead').style.color=reason==='time'?'#5fe05f':['shat','bhajiLate','bhajiBad'].includes(reason)?'#c89a5c':'#ff5a5a';$('ovreason').textContent=r;
   const mm=Math.floor(G.t/60),ss=String(Math.floor(G.t%60)).padStart(2,'0');
-  $('ovtable').innerHTML=`<tr><td>${TEXT.ui.rowScore}</td><td>${G.score}</td></tr><tr><td>${TEXT.ui.rowFood}</td><td>${G.food}</td></tr><tr><td>${TEXT.ui.rowDog}</td><td>${G.dogs}</td></tr><tr><td>${TEXT.ui.rowSmashed}</td><td>${G.smashed}</td></tr><tr><td>${TEXT.ui.rowKills}</td><td>${G.kills}</td></tr><tr><td>${TEXT.ui.rowBosses}</td><td>${G.bossKills}</td></tr><tr><td>${TEXT.ui.rowBhajis}</td><td>${G.bhajis}</td></tr><tr><td>${TEXT.ui.rowLevel}</td><td>${G.level}</td></tr><tr><td>${TEXT.ui.rowForm}</td><td>${FORMS[G.form].name}</td></tr><tr><td>${TEXT.ui.rowTime}</td><td>${mm}:${ss}</td></tr>`;
+  $('ovtable').innerHTML=`<tr><td>${TEXT.ui.rowScore}</td><td>${G.score}</td></tr><tr><td>${TEXT.ui.rowFood}</td><td>${G.food}</td></tr><tr><td>${TEXT.ui.rowDog}</td><td>${G.dogs}</td></tr><tr><td>${TEXT.ui.rowSmashed}</td><td>${G.smashed}</td></tr><tr><td>${TEXT.ui.rowKills}</td><td>${G.kills}</td></tr><tr><td>${TEXT.ui.rowBosses}</td><td>${G.bossKills}</td></tr><tr><td>${TEXT.ui.rowBhajis}</td><td>${G.bhajis}</td></tr>${G.shades?'<tr><td>'+TEXT.ui.rowShades+'</td><td>'+G.shades+'</td></tr>':''}<tr><td>${TEXT.ui.rowLevel}</td><td>${G.level}</td></tr><tr><td>${TEXT.ui.rowForm}</td><td>${FORMS[G.form].name}</td></tr><tr><td>${TEXT.ui.rowTime}</td><td>${mm}:${ss}</td></tr>`;
   $('ovrank').textContent=(nb&&G.score>0?TEXT.ui.newBest:'')+TEXT.ui.rank+TEXT.ranks.find(r=>G.score<r[0])[1];
   setTimeout(()=>show('over'),350);
 }
@@ -1177,6 +1228,7 @@ function render(){
     g.globalAlpha=1;
   }
   drawLandmarks(g,X,Y);
+  drawBar(g,X,Y);
   // eggs
   for(const e of G.eggs){
     const sx=X(e.x),sy=Y(e.y);if(sx<-12||sx>W+12||sy<-12||sy>H+12)continue;
@@ -1236,6 +1288,23 @@ function drawPursuer(g,e,X,Y){
   if(e.type==='ry'){g.fillStyle='#d02020';g.fillRect(hx,hy,4,2);g.fillStyle='#e8eef8';g.fillRect(hx+4,hy,5,1);if(((G.t*3)|0)%2)g.fillRect(hx+8,hy-1,1,1)}
   if(e.type==='ed'&&e.carry&&ICON[e.carry])g.drawImage(ICON[e.carry],hx-4,hy-14);
 }
+function drawBar(g,X,Y){
+  const sx=X(BAR_POS[0]),sy=Y(BAR_POS[1]);if(sx<-70||sx>W+70||sy<-60||sy>H+50)return;
+  const on=!!G.bar;
+  g.fillStyle='#0004';g.fillRect(sx-17,sy+1,34,3);
+  g.fillStyle=on?'#2a6a7a':'#3a4448';g.fillRect(sx-14,sy-12,28,13);
+  g.fillStyle=on?'#4ac0d8':'#262e30';g.fillRect(sx-12,sy-9,24,6);
+  if(on){g.fillStyle='#ff8a1a';for(let i=0;i<4;i++)g.fillRect(sx-9+i*6,sy-8,3,3)}
+  for(let i=0;i<8;i++){g.fillStyle=(i%2)?(on?'#fff':'#8a8a8a'):(on?'#1ab0c8':'#4a5658');g.fillRect(sx-16+i*4,sy-18,4,6)}
+  g.fillStyle='#10242a';g.fillRect(sx-17,sy-30,34,10);
+  txtC(g,TEXT.ui.barName,sx,sy-28,on?'#ffd23a':'#7a8a8e');
+  if(!on)txtC(g,'CLOSED',sx,sy-7,'#9aa8aa');
+  else{
+    const pr=CFG.bar.radius+Math.round(Math.sin(G.t*8)*3);g.fillStyle='#ff8a1a';
+    for(let i=0;i<44;i++){const a=i/44*6.283;g.fillRect(Math.round(sx+Math.cos(a)*pr),Math.round(sy-6+Math.sin(a)*pr*.8),2,2)}
+    g.drawImage(SPR.spritz,sx-3,sy-46-Math.round(Math.abs(Math.sin(G.t*6))*4));
+  }
+}
 function drawLandmarks(g,X,Y){
   const busy=G.sf>0||G.toiletCd>0;
   for(const t of TOILETS){
@@ -1279,6 +1348,8 @@ function edgeMark(g,cx,cy,wx,wy,fn){
 }
 function markers(g,cx,cy){
   for(const q of (G.pursuers||[]))if(q.state==='chase')edgeMark(g,cx,cy,q.x,q.y,(mx,my)=>{g.fillStyle='#d02020';g.fillRect(mx-5,my-7,10,14);txtC(g,q.type[0],mx+1,my-3,'#fff')});
+  if(G.bar)edgeMark(g,cx,cy,BAR_POS[0],BAR_POS[1],(mx,my)=>{g.fillStyle=(G.t*4|0)%2?'#ff8a1a':'#2a6a7a';g.fillRect(mx-6,my-7,12,14);g.drawImage(SPR.spritz,mx-3,my-4)});
+  for(const e of G.eggs)if(e.type==='shades')edgeMark(g,cx,cy,e.x,e.y,(mx,my)=>{g.fillStyle='#000b';g.fillRect(mx-9,my-5,18,10);g.drawImage(SPR.shades,mx-7,my-3)});
   for(const e of G.eggs)if(e.type==='weapon')edgeMark(g,cx,cy,e.x,e.y,(mx,my)=>{g.fillStyle='#000b';g.fillRect(mx-7,my-7,14,14);g.drawImage(ICON[e.wid],mx-6,my-6)});
   const bs=nearest(G.enemies.filter(e=>e.boss),G.px,G.py,1e9);
   if(bs){const sx=bs.x-cx,sy=bs.y-cy;if(!(sx>10&&sx<W-10&&sy>34&&sy<H-10)){const dx=sx-W/2,dy=sy-H/2,t=Math.min((W/2-10)/Math.abs(dx||1e-3),(H/2-26)/Math.abs(dy||1e-3)),mx=Math.round(W/2+dx*t),my=Math.round(H/2+dy*t);g.fillStyle=(G.t*4|0)%2?'#ff3b3b':'#7a1020';g.fillRect(mx-5,my-7,10,14);txtC(g,'!',mx+1,my-3,'#fff')}}
@@ -1308,6 +1379,7 @@ function updHUD(){
   {let h='';
    if(G.bhaji)h+='<div class="chip red">'+TEXT.ui.argyChip+' '+Math.ceil(G.bhaji.t)+'S</div>';
    if(G.frozen>0)h+='<div class="chip ice">'+TEXT.ui.frozenChip+' '+Math.ceil(G.frozen)+'S</div>';
+   if(G.bar)h+='<div class="chip ora">'+TEXT.ui.barChip+' '+Math.ceil(G.bar.t)+'S</div>';
    if(G.sf>0)h+='<div class="chip org">'+TEXT.ui.sfChip+' '+Math.ceil(G.sf)+'S</div>';
    if(G.slit>0)h+='<div class="chip gry">'+TEXT.ui.slitChip+' '+Math.ceil(G.slit)+'S</div>';
    if(G.trip>0)h+='<div class="chip pur">'+TEXT.ui.chocChip+' '+Math.ceil(G.trip)+'S</div>';
