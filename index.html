@@ -53,6 +53,7 @@ html,body{margin:0;height:100%;background:var(--bg);overflow:hidden;font-family:
 .it b{position:absolute;right:-2px;bottom:-4px;font-size:7px;color:var(--yl);text-shadow:1px 1px #000}
 #bubble{position:absolute;left:50%;top:calc(50% - 74px);transform:translateX(-50%);max-width:78vw;background:#fff;color:#111;padding:8px 10px;font-size:9px;line-height:1.5;text-align:center;border:3px solid #111;box-shadow:3px 3px 0 #0008;display:none}
 #bubble:after{content:'';position:absolute;left:50%;bottom:-11px;margin-left:-6px;border:6px solid transparent;border-top:8px solid #111}
+#toast.big{font-size:24px;color:#ff3b3b;line-height:1.4}
 #toast{white-space:pre-line;position:absolute;left:0;right:0;top:34%;text-align:center;font-size:14px;color:var(--yl);text-shadow:3px 3px #000;display:none;padding:0 12px;line-height:1.5}
 #stick{position:fixed;width:96px;height:96px;margin:-48px 0 0 -48px;border:3px solid #fff7;border-radius:50%;background:#fff1;display:none;pointer-events:none}
 #knob{position:absolute;left:50%;top:50%;width:40px;height:40px;margin:-20px 0 0 -20px;border-radius:50%;background:#fffa;border:3px solid #fff}
@@ -296,6 +297,16 @@ const CFG={
     ry:  {scale:1.1,  duration:10, slitHeight:26},  // tunnel vision: slit height in game px
   },
 
+  /* ---- MESHUGGAH ANNOUNCED: once-per-round event. Everyone turns up at once ---- */
+  meshuggah:{
+    enabled:true,
+    at:[.4,.7],                 // when it hits, as a fraction of the round length [min,max]
+    noSpawnLast:20,             // never in the last N sec
+    pals:true,                  // Dean, Rob, Ed, Phil and Ry all spawn at once (ignores maxAlive)
+    demon:true,                 // the Battle Jacket Sleep Paralysis Demon arrives (he only ever appears here)
+    bannerTime:4,               // sec the banner stays up
+  },
+
   /* ---- ARGY BHAJI event ---- */
   bhaji:{
     firstIn:[70,100],           // sec until the first alert [min,max]
@@ -368,11 +379,13 @@ const TEXT={
     "BREAKS 1 IN 4 FOOD EGGS!",
   ],
 
+  // the demon only turns up for MESHUGGAH ANNOUNCED (see CFG.meshuggah)
+  demon:{name:"BATTLE JACKET SLEEP PARALYSIS DEMON",look:'goth'},
+
   // boss order (loops). look: 'lefty' = crowned purple-haired boss, 'goth' = the jacket demon
   bosses:[
     {name:"THE PUNDIT",look:'lefty'},
     {name:"KEYBOARD WARRIOR",look:'lefty'},
-    {name:"BATTLE JACKET SLEEP PARALYSIS DEMON",look:'goth'},
     {name:"PODCAST BRO",look:'lefty'},
     {name:"THE BLUE TICK",look:'lefty'},
     {name:"FACEBOOK ADMIN",look:'lefty'},
@@ -406,7 +419,7 @@ const TEXT={
     dogHud:'DOG EGGS',
     argyToast:"ARGY BHAJI!\nGET TO BECKY'S BHAJIS!", argyChip:'ARGY BHAJI!', bhajiName:"BECKY'S BHAJIS", bhajiToast:'BHAJI GET!', bhajiGot:'BHAJI',
     sfToast:'SAUSAGE FINGERS!\nALL WEAPONS LV 50!', sfChip:'SAUSAGE FINGERS', sfEnd:'FINGERS BACK TO NORMAL', toiletLabel:'TOILETS',
-    frozenChip:'FROZEN', chocChip:'TRIPPING', slitChip:'TUNNEL VISION', chocFloat:'WHOA',
+    meshToast:'MESHUGGAH ANNOUNCED', frozenChip:'FROZEN', chocChip:'TRIPPING', slitChip:'TUNNEL VISION', chocFloat:'WHOA',
     pursuerNames:{dean:'DEAN', rob:'ROB', ed:'ED', phil:'PHIL', ry:'RY'},
     deanToast:'DEAN OPENED A BEER IN YOUR FACE!\nFROZEN!',
     robToast:'ROB GAVE YOU SOME MUSHROOM CHOCOLATE!\nCONTROLS BACKWARDS. WHOA.',
@@ -688,7 +701,7 @@ function newGame(){
     wp:{whisk:1,cans:0,yoyo:0,vicks:0},buff:{jacket:0,elec:0,mush:0},
     cd:{whisk:1,cans:1.5,yoyo:1,vicks:0},swing:null,yo:null,
     enemies:[],eggs:[],puddles:[],cans:[],fx_:[],texts:[],
-    spawnAcc:0,eggT:0,dogT:rnd(...CFG.eggs.dogEvery)*.6,zincT:rnd(...CFG.eggs.zincEvery)*.8,sayT:5,pursuers:[],purT:rnd(...CFG.pursuers.firstIn),pGrace:0,slit:0,frozen:0,bhaji:null,bhajiT:rnd(...CFG.bhaji.firstIn),bhajis:0,sf:0,sfAcc:0,toiletCd:0,shitWhy:'shat',trip:0,nextBoss:CFG.bosses.firstAt,bossN:0,bossKills:0,slow:0,bubbleT:0,toastT:0,sh:null,reason:''};
+    spawnAcc:0,eggT:0,dogT:rnd(...CFG.eggs.dogEvery)*.6,zincT:rnd(...CFG.eggs.zincEvery)*.8,sayT:5,meshAt:rnd(...CFG.meshuggah.at)*opts.len*60,meshDone:false,pursuers:[],purT:rnd(...CFG.pursuers.firstIn),pGrace:0,slit:0,frozen:0,bhaji:null,bhajiT:rnd(...CFG.bhaji.firstIn),bhajis:0,sf:0,sfAcc:0,toiletCd:0,shitWhy:'shat',trip:0,nextBoss:CFG.bosses.firstAt,bossN:0,bossKills:0,slow:0,bubbleT:0,toastT:0,sh:null,reason:''};
   for(let i=0;i<CFG.eggs.startCount;i++)spawnEgg('food',60,CFG.eggs.spawnDistMax);
   cv.classList.remove('trip');refreshItems();hide('menu');hide('over');hide('pause');hide('levelup');
   $('hud').style.display='block';updHUD();
@@ -724,11 +737,23 @@ function spawnPursuer(){
   if(!pool.length)return false;
   let tot=0;pool.forEach(t=>tot+=P.weights[t]);let r=Math.random()*tot,type=pool[0];
   for(const t of pool){r-=P.weights[t];if(r<=0){type=t;break}}
-  let x,y,ok=false;const R=Math.hypot(W,H)/2+20;
-  for(let i=0;i<10&&!ok;i++){const a=Math.random()*6.283;x=G.px+Math.cos(a)*R;y=G.py+Math.sin(a)*R;ok=inPoly(x,y)}
-  if(!ok){const a=Math.random()*6.283;x=G.px+Math.cos(a)*R;y=G.py+Math.sin(a)*R}
-  G.pursuers.push({pur:true,type,x,y,s:P[type].scale,ph:Math.random()*6,state:'chase',timer:0,carry:null});
+  makePursuer(type);
   return true;
+}
+function makePursuer(type,angle){
+  const P=CFG.pursuers,R=Math.hypot(W,H)/2+20;let x,y,ok=false;
+  for(let i=0;i<10&&!ok;i++){const a=(i===0&&angle!==undefined)?angle:Math.random()*6.283;x=G.px+Math.cos(a)*R;y=G.py+Math.sin(a)*R;ok=inPoly(x,y)}
+  if(!ok){const a=angle!==undefined?angle:Math.random()*6.283;x=G.px+Math.cos(a)*R;y=G.py+Math.sin(a)*R}
+  G.pursuers.push({pur:true,type,x,y,s:P[type].scale,ph:Math.random()*6,state:'chase',timer:0,carry:null});
+}
+function meshuggah(){
+  const M=CFG.meshuggah;G.meshDone=true;
+  toast(TEXT.ui.meshToast,M.bannerTime,true);sfx.alarm();sfx.form();G.shake=.8;G.flash=.5;
+  if(M.demon)spawnBoss(TEXT.demon,true);
+  if(M.pals){
+    const have=new Set(G.pursuers.map(q=>q.type)),base=Math.random()*6.283;let k=0;
+    for(const t of PUR_TYPES){if(have.has(t)||(t==='ed'&&!ownedWeapons().length))continue;makePursuer(t,base+k++*1.2566)}
+  }
 }
 function updPursuers(dt){
   const P=CFG.pursuers;
@@ -776,19 +801,19 @@ function openBeer(e){
   toast(TEXT.ui.deanToast,2);sfx.can();G.flash=.2;
   for(let i=0;i<26;i++){const k=Math.random(),dx=G.px-e.x,dy=G.py-6-e.y;G.fx_.push({x:e.x,y:e.y-8,vx:dx*(.9+k*.8)+rnd(-8,8),vy:dy*(.9+k*.8)-20+rnd(-8,8),t:0,life:rnd(.4,.9),col:Math.random()<.5?'#f0b020':'#fff',sz:Math.random()<.4?2:1})}
 }
-function spawnBoss(){
+function spawnBoss(forceKind,quiet){
   const B=CFG.bosses;let x,y,ok=false;const R=Math.hypot(W,H)/2+30;
   for(let i=0;i<14&&!ok;i++){const a=Math.random()*6.283;x=G.px+Math.cos(a)*R;y=G.py+Math.sin(a)*R;ok=inPoly(x,y)}
   if(!ok)return false;
-  const n=G.bossN++,kind=TEXT.bosses[n%TEXT.bosses.length],sc=Math.min(B.scaleMax,B.scale+n*B.scalePerBoss),hp=B.hp+n*B.hpPerBoss;
+  const n=G.bossN++,kind=forceKind||TEXT.bosses[n%TEXT.bosses.length],sc=Math.min(B.scaleMax,B.scale+n*B.scalePerBoss),hp=B.hp+n*B.hpPerBoss;
   G.enemies.push({x,y,s:sc,hp,max:hp,spd:B.speed,v:0,ph:0,flash:0,dmg:B.contactDmg,boss:true,name:kind.name,look:kind.look});
-  toast(TEXT.ui.bossIncoming+' '+kind.name,2.4);say(pick(TEXT.speech),2.6);G.shake=.4;sfx.form();
+  if(!quiet){toast(TEXT.ui.bossIncoming+' '+kind.name,2.4);say(pick(TEXT.speech),2.6);G.shake=.4;sfx.form()}
   return true;
 }
 function floatText(x,y,s,col){G.texts.push({x,y,s,col,t:0})}
 function burst(x,y,col,n=6,sp=40){for(let i=0;i<n;i++){const a=Math.random()*6.283,v=rnd(sp*.3,sp);G.fx_.push({x,y,vx:Math.cos(a)*v,vy:Math.sin(a)*v-20,t:0,life:rnd(.3,.6),col,sz:Math.random()<.4?2:1})}}
 function say(s,dur=2.6){const b=$('bubble');b.textContent=s;b.style.display='block';G.bubbleT=dur}
-function toast(s,dur=1.6){const b=$('toast');b.textContent=s;b.style.display='block';G.toastT=dur}
+function toast(s,dur=1.6,big){const b=$('toast');b.textContent=s;b.style.display='block';b.classList.toggle('big',!!big);G.toastT=dur}
 function hit(e,d,nk){
   e.hp-=d;e.flash=.1;
   if(!e.boss&&!nk){const dx=e.x-G.px,dy=e.y-G.py,l=Math.hypot(dx,dy)||1;e.x+=dx/l*3;e.y+=dy/l*3}
@@ -866,6 +891,7 @@ function update(dt){
   G.spawnAcc+=dt*rate;
   while(G.spawnAcc>=1){G.spawnAcc--;if(G.enemies.length<CFG.enemies.max)spawnEnemy()}
   updPursuers(dt);
+  if(CFG.meshuggah.enabled&&!G.meshDone&&G.t>=G.meshAt&&G.limit-G.t>CFG.meshuggah.noSpawnLast)meshuggah();
   if(G.t>=G.nextBoss&&G.limit-G.t>CFG.bosses.noSpawnLast&&spawnBoss())G.nextBoss+=CFG.bosses.every;
   const jr=1-Math.min(CFG.buffs.jacket.max,CFG.buffs.jacket.perLevel*G.buff.jacket);
   G.inv-=dt;
