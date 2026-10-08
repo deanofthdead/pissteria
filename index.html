@@ -687,7 +687,9 @@ function beep(f,d=.08,type='square',v=.04,slide=0){
 const MUSIC={notes:[],loopSec:0,gain:null,timer:null,loopStart:0,idx:0,noise:null,on:false};
 async function loadMusic(){
   if(!CFG.music.enabled)return;
-  try{parseMidi(await (await fetch(CFG.music.file)).arrayBuffer())}catch(e){}
+  // ?music=other.mid in the URL plays a different MIDI file (handy for trying loops locally)
+  const file=new URLSearchParams(location.search).get('music')||CFG.music.file;
+  try{parseMidi(await (await fetch(file)).arrayBuffer())}catch(e){}
 }
 function parseMidi(buf){
   const d=new DataView(buf);let p=0;
