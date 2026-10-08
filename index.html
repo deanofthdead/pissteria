@@ -37,6 +37,7 @@ html,body{margin:0;height:100%;background:var(--bg);overflow:hidden;font-family:
 .chip.red{border-color:#ff3b3b;color:#ff9a9a;animation:pulse .5s steps(2) infinite}
 .chip.org{border-color:#ff9a3c;color:#ffd0a0}
 .chip.ice{border-color:#6ad0ff;color:#c0ecff}
+.chip.gry{border-color:#aaa;color:#ddd}
 .chip.pur{border-color:#ff5fe0;color:#ffc0f4}
 #chips{position:absolute;left:50%;transform:translateX(-50%);top:calc(150px + env(safe-area-inset-top));display:flex;flex-direction:column;gap:4px;align-items:center}
 #game.trip{animation:trip 2.4s linear infinite}
@@ -119,8 +120,7 @@ td{padding:0 8px}td:last-child{color:var(--yl);text-align:right}
   ▪ EVERY LEVEL-UP HAS A 1 IN 100 CHANCE YOU SHIT YOURSELF. THAT'S IT. THAT'S THE GAME.<br>
   ▪ <b style="color:#ff8a8a">ARGY BHAJI</b> HITS AT RANDOM: GET TO <b style="color:#ffd23a">BECKY'S BHAJIS</b> IN 20S OR YOU SHIT YOURSELF. A BHAJI = 50 FOOD EGGS. (1 IN 50 MAKES YOU SHIT YOURSELF ANYWAY.)<br>
   ▪ STAND NEAR THE <b style="color:#ffd0a0">TOILETS</b> FOR 10S OF SAUSAGE FINGERS: ALL WEAPONS LV 50, BUT YOU DROP 2 FOOD EGGS A SECOND.<br>
-  ▪ <b style="color:#ffc0f4">MUSHROOM CHOCOLATE</b> MAKES THE WORLD GO TRIPPY AND YOUR CONTROLS BACKWARDS.<br>
-  ▪ <b style="color:#fff">DEAN</b> (CAMO SHORTS, BLACK HOODY) OPENS A BEER AT YOU IF HE GETS CLOSE. YOU FREEZE FOR 3S. KILL HIM FIRST.<br>
+  ▪ <b style="color:#fff">THE PALS</b> CAN'T BE KILLED AND DO NO DAMAGE. THEY JUST CHASE YOU: <b>DEAN</b> (BEER IN THE FACE: FROZEN), <b>ROB</b> (MUSHROOM CHOCOLATE: TRIPPY, CONTROLS REVERSED), <b>ED</b> (NICKS A WEAPON: FETCH IT FROM THE OTHER SIDE OF THE MAP), <b>PHIL</b> (ARGY BHAJI, NOW), <b>RY</b> (TUNNEL VISION). RUN.<br>
   ▪ SURVIVE TO THE TIME LIMIT. YOU'LL SHIT YOURSELF THEN TOO.</p>
   <button class="btn" id="howback">BACK</button>
 </div>
@@ -274,19 +274,26 @@ const CFG={
     tick:.5,                    // sec between damage pulses
   },
 
-  /* ---- Dean (camo shorts, black hoody). Opens a beer at you and freezes you ---- */
-  dean:{
-    firstIn:[35,50],            // sec until the first Dean
-    every:[28,45],              // sec between Deans
-    max:2,                      // Deans alive at once
-    noSpawnLast:10,             // none in the last N sec
-    hp:24, hpPerSec:1/300,
-    speed:26,                   // px/sec (a bit quicker than the so called left)
-    scale:1.15,
-    triggerRadius:42,           // how close he has to get to open the beer (whisk range is 34, so he gets the first shot)
-    freeze:3,                   // sec Pork is frozen
-    drinkTime:4,                // sec Dean stands there drinking before he wanders off
-    immunity:2,                 // sec after thawing before another Dean can freeze you
+  /* ---- THE PALS: Dean, Rob, Ed, Phil, Ry ----
+     They can't be killed and do no damage. Once spawned they chase you until they catch you,
+     do their thing, then leave. Only way to deal with them is to run. ---- */
+  pursuers:{
+    firstIn:[40,55],            // sec until the first pal
+    every:[25,40],              // sec between spawns
+    maxAlive:3,                 // pals chasing you at once
+    noSpawnLast:12,             // none in the last N sec of the round
+    speed:62,                   // px/sec (Pork is 70, 94 once he's Jane+)
+    speedPerMin:2,              // they get quicker as the round goes on
+    catchUpBoost:2.2,           // speed multiplier while they're off-screen (so they always show up)
+    catchRadius:11,             // how close counts as caught
+    leaveTime:3,                // sec they walk away for after catching you
+    grace:4,                    // sec after ANY catch before another pal can catch you
+    weights:{dean:1, rob:1, ed:1, phil:1, ry:1},   // spawn odds (0 = never). One of each type at a time.
+    dean:{scale:1.15, freeze:3},        // beer in the face: frozen this many sec
+    rob: {scale:.8,   tripDuration:10}, // mushroom chocolate: trippy + reversed controls
+    ed:  {scale:1.1},                   // steals a weapon (it reappears on the far side of the map)
+    phil:{scale:1.25},                  // starts ARGY BHAJI immediately
+    ry:  {scale:1.1,  duration:10, slitHeight:26},  // tunnel vision: slit height in game px
   },
 
   /* ---- ARGY BHAJI event ---- */
@@ -308,12 +315,6 @@ const CFG={
     weaponLevel:50,             // owned weapons are treated as this level
     eggsLostPerSec:2,           // food eggs (score) lost per second
     cooldown:30,                // sec before the toilets work again (0 = no cooldown)
-  },
-
-  /* ---- mushroom chocolate ---- */
-  chocolate:{
-    every:[50,75],              // sec between spawns
-    duration:10,                // sec of tripping + reversed controls
   },
 
   /* ---- evolution moment ---- */
@@ -396,8 +397,15 @@ const TEXT={
     dogHud:'DOG EGGS',
     argyToast:"ARGY BHAJI!\nGET TO BECKY'S BHAJIS!", argyChip:'ARGY BHAJI!', bhajiName:"BECKY'S BHAJIS", bhajiToast:'BHAJI GET!', bhajiGot:'BHAJI',
     sfToast:'SAUSAGE FINGERS!\nALL WEAPONS LV 50!', sfChip:'SAUSAGE FINGERS', sfEnd:'FINGERS BACK TO NORMAL', toiletLabel:'TOILETS',
-    deanToast:'DEAN OPENED A BEER AT YOU!\nFROZEN!', deanName:'DEAN', frozenChip:'FROZEN',
-    chocToast:'MUSHROOM CHOCOLATE!\nCONTROLS BACKWARDS. WHOA.', chocChip:'TRIPPING', chocFloat:'WHOA', rowBhajis:'BHAJIS EATEN',
+    frozenChip:'FROZEN', chocChip:'TRIPPING', slitChip:'TUNNEL VISION', chocFloat:'WHOA',
+    pursuerNames:{dean:'DEAN', rob:'ROB', ed:'ED', phil:'PHIL', ry:'RY'},
+    deanToast:'DEAN OPENED A BEER IN YOUR FACE!\nFROZEN!',
+    robToast:'ROB GAVE YOU SOME MUSHROOM CHOCOLATE!\nCONTROLS BACKWARDS. WHOA.',
+    edToast:'ED STOLE YOUR {weapon}!\nGET IT BACK FROM THE OTHER SIDE OF THE MAP!',
+    edNothing:'ED CAME TO ROB YOU. YOU HAD NOTHING.', edGotBack:'GOT YOUR {weapon} BACK!',
+    philToast:'PHIL STARTED SOME ARGY BARGY!',
+    ryToast:'RY GOT THE PENKNIFE OUT.\nTUNNEL VISION!',
+    rowBhajis:'BHAJIS EATEN',
     score:'FOOD EGGS',                 // HUD counter (score = food eggs, dog eggs count extra)
     bestLine:'FOOD EGGS',
     rowScore:'FOOD EGG SCORE', rowFood:'FOOD EGGS FOUND', rowDog:'DOG EGGS FOUND', rowSmashed:'FOOD EGGS SMASHED',
@@ -485,7 +493,6 @@ const ESPR=EPAL.map(c=>[["...dd..dd..."],["..dd....dd.."]].map(l=>mk(EROWS.conca
 const SPR={
  egg:mk([".eeee.","eEEEEe","eEwEEe","eEEEEe","eEEEEe","eEEEEe",".eEEe.","..ee.."],{e:'#c8a060',E:'#fff6e0',w:'#fff'}),
  dog:mk([".....bb...","....bBBb..","...bBBBBb.","..bbbbbbbb",".bBBBBBBBb","bBBBwBBBBb","bBBBBBBBBb",".bbbbbbbbb"],{b:'#4a2a10',B:'#8a5a2c',w:'#c89a5c'}),
- choc:mk(["kkkkkkkkkk","kBBBBBBBBk","kBBrrrrBBk","kBrrwrrrBk","kBBBssBBBk","kBBBssBBBk","kBBBBBBBBk","kkkkkkkkkk"],{k:'#3a1c0a',B:'#7a4420',r:'#e03030',w:'#fff',s:'#f4ecd8'}),
  zinc:mk(["..gggg..",".gggggg.",".bbbbbb.",".bwwwwb.",".bbbwbb.",".bbwbbb.",".bwwwwb.",".bbbbbb.",".dddddd."],{g:'#ccd',b:'#2a7fd4',w:'#fff',d:'#14407a'}),
  tree:mk(["....oooo....","..ooGGGGoo..",".oGGLGGGGGo.","oGGGGGLGGGGo","oGLGGGGGGLGo","oGGGGGGLGGGo",".oGGLGGGGGo.","..ooGGGGoo..","....oooo....","....tt......","....tt......"].map(r=>r.padEnd(12,'.')),{o:'#14401a',G:'#2f8a2a',L:'#52b83c',t:'#5a3a1a'}),
  can:mk(["kkkk","yyyy","ywwy","yyyy","kkkk"],{k:'#c8c8d0',y:'#f0b020',w:'#fff'}),
@@ -500,7 +507,15 @@ const ICON={
  vicks:mk(["....bbbb....","....bbbb....","...wwwwww...","...wwwwww...","...wBBBBw...","...wBwwBw...","...wBBBBw...","...wwwwww...","...wwwwww...","....wwww....","....gggg....","............"],{b:'#2a7fd4',w:'#e8f0ff',B:'#2a7fd4',g:'#9aa8c0'}),
  roll:mk(["............","..bbbbbbbb..",".bYYYYYYYYb.",".bYyyyyyyYb.",".bYyyyyyyYb.",".bYYYYYYYYb.","..bbbbbbbb..","............","............","............","............","............"],{b:'#8a5020',Y:'#e8b060',y:'#d06040'})
 };
-const DEAN_SPR=[["...ss..ss..."],["..ss....ss.."]].map(l=>mk(["...kkkkkk...","..kkkkkkkk..",".kksssssskk.",".kksesseskk.",".kksssssskk.","..kksmmskk..","..kkkkkkkk..",".kkkkkkkkkk.","kkkkkkkkkkkk","skkkkkkkkkks",".kkkkkkkkkk.",".cgCcgCcgCc.",".cCgcCgcCgc."].concat(l),{k:'#1a1a1a',s:'#e8b890',e:'#111',m:'#6a2020',c:'#5a6a2a',C:'#3a4a1a',g:'#8a7a4a'}));
+const mkP=(rows,la,lb,pal)=>[la,lb].map(l=>mk(rows.concat(l),pal));
+const LEGS_A=["...jj..jj..."],LEGS_B=["..jj....jj.."];
+const PALSPR={
+  dean:mkP(["...kkkkkk...","..kkkkkkkk..",".kksssssskk.",".kksesseskk.",".kksssssskk.","..kksmmskk..","..kkkkkkkk..",".kkkkkkkkkk.","kkkkkkkkkkkk","skkkkkkkkkks",".kkkkkkkkkk.",".cgCcgCcgCc.",".cCgcCgcCgc."],["...ss..ss..."],["..ss....ss.."],{k:'#1a1a1a',s:'#e8b890',e:'#111',m:'#6a2020',c:'#5a6a2a',C:'#3a4a1a',g:'#8a7a4a'}),
+  rob:mkP(["...hhhhhh...","..hhhhhhhh..","..hssssssh..","..sesssses..","..ssssssss..","..ssshhsss..","...ssssss...",".cccccccccc.","sccccccccccs","sccccccccccs",".cccccccccc.","..jjjjjjjj.."],LEGS_A,LEGS_B,{h:'#111',s:'#e8b890',e:'#111',c:'#6a8a3a',j:'#3a4a6a'}),
+  ed:mkP(["...bbbbbb...","..bbbbbbbb..","..BBBBBBBB..","..sesssses..","..ssssssss..","..sssmmsss..","...ssssss...",".rrrrrrrrrr.","srrrrrrrrrrs","srrrrrrrrrrs",".rrrrrrrrrr.","..rrrrrrrr.."],["...jj..jj...","...jj..jj..."],["...jj..jj...","..jj....jj.."],{b:'#3a3a44',B:'#6a6a78',s:'#e8b890',e:'#111',m:'#a02020',r:'#d82a2a',j:'#1a2a5a'}),
+  phil:mkP(["...SSSSSS...","..ssssssss..","..ssssssss..","..sesssses..","..rssssssr..","..rrrrrrrr..",".rrrrrrrrrr.",".rrrrrrrrrr.","..rrrrrrrr..",".cccccccccc.","sccccccccccs","sccccccccccs",".cccccccccc.",".cccccccccc.","..cccccccc.."],["...jj..jj...","...jj..jj...","...jj..jj...","..jjj..jjj.."],["...jj..jj...","...jj..jj...","...jj..jj...","...jj..jj..."],{S:'#f4c0a0',s:'#e8b890',r:'#c0301a',e:'#111',c:'#505a64',j:'#2a2a3a'}),
+  ry:mkP(["...SSSSSS...","..ssssssss..","..ssssssss..","..sesssses..","..ssssssss..","..sssmmsss..","...ssssss...",".cccccccccc.","sccccccccccs","sccccccccccs",".cccccccccc.","..cccccccc.."],LEGS_A,LEGS_B,{S:'#f4c8a8',s:'#e8b890',e:'#111',m:'#a02020',c:'#2a8a8a',j:'#2a3a4a'}),
+};
 const BOSS_SPR=[["...dd..dd..."],["..dd....dd.."]].map(l=>mk(["...y.yy.y...","...yyyyyy..."].concat(EROWS,l),{p:'#a23be8',P:'#cf8bff',s:'#eab890',e:'#111',m:'#6a2020',c:'#7a1020',d:'#333',y:'#ffd23a'}));
 
 /* =====================================================================
@@ -662,7 +677,7 @@ function newGame(){
     wp:{whisk:1,cans:0,yoyo:0,vicks:0},buff:{jacket:0,elec:0,mush:0},
     cd:{whisk:1,cans:1.5,yoyo:1,vicks:0},swing:null,yo:null,
     enemies:[],eggs:[],puddles:[],cans:[],fx_:[],texts:[],
-    spawnAcc:0,eggT:0,dogT:rnd(...CFG.eggs.dogEvery)*.6,zincT:rnd(...CFG.eggs.zincEvery)*.8,sayT:5,deanT:rnd(...CFG.dean.firstIn),frozen:0,deanImmune:0,bhaji:null,bhajiT:rnd(...CFG.bhaji.firstIn),bhajis:0,sf:0,sfAcc:0,toiletCd:0,shitWhy:'shat',trip:0,chocT:rnd(...CFG.chocolate.every)*.7,nextBoss:CFG.bosses.firstAt,bossN:0,bossKills:0,slow:0,bubbleT:0,toastT:0,sh:null,reason:''};
+    spawnAcc:0,eggT:0,dogT:rnd(...CFG.eggs.dogEvery)*.6,zincT:rnd(...CFG.eggs.zincEvery)*.8,sayT:5,pursuers:[],purT:rnd(...CFG.pursuers.firstIn),pGrace:0,slit:0,frozen:0,bhaji:null,bhajiT:rnd(...CFG.bhaji.firstIn),bhajis:0,sf:0,sfAcc:0,toiletCd:0,shitWhy:'shat',trip:0,nextBoss:CFG.bosses.firstAt,bossN:0,bossKills:0,slow:0,bubbleT:0,toastT:0,sh:null,reason:''};
   for(let i=0;i<CFG.eggs.startCount;i++)spawnEgg('food',60,CFG.eggs.spawnDistMax);
   cv.classList.remove('trip');refreshItems();hide('menu');hide('over');hide('pause');hide('levelup');
   $('hud').style.display='block';updHUD();
@@ -684,17 +699,70 @@ function spawnEnemy(){
   const hp=E.hpBase*Math.pow(s,E.hpSizeExp)*(1+G.t*E.hpPerSec);
   G.enemies.push({x,y,s,hp,max:hp,spd:(E.speedBase+Math.min(E.speedBonusMax,G.t*E.speedBonusPerSec))*(1.1-.1*Math.min(s,3))*rnd(.9,1.1),v:Math.random()*6|0,ph:Math.random()*6,flash:0,dmg:E.contactDmg+E.contactDmgPerSize*s});
 }
-function spawnDean(){
-  const D=CFG.dean;let x,y,ok=false;const R=Math.hypot(W,H)/2+20;
+/* ---------- THE PALS ---------- */
+const PUR_TYPES=['dean','rob','ed','phil','ry'];
+const ownedWeapons=()=>['whisk','cans','yoyo','vicks'].filter(id=>G.wp[id]>0);
+function farSpot(){
+  let best=null,bd=-1;
+  for(let i=0;i<400;i++){const x=rnd(20,WW-20),y=rnd(20,WH-20);if(!inPoly(x,y)||!inPoly(x+12,y)||!inPoly(x-12,y)||inLake(x,y))continue;const d=Math.hypot(x-G.px,y-G.py);if(d>bd){bd=d;best=[x,y]}}
+  return best||[START[0],START[1]];
+}
+function spawnPursuer(){
+  const P=CFG.pursuers,alive=new Set(G.pursuers.map(q=>q.type));
+  const pool=PUR_TYPES.filter(t=>!alive.has(t)&&(P.weights[t]||0)>0&&(t!=='ed'||ownedWeapons().length));
+  if(!pool.length)return false;
+  let tot=0;pool.forEach(t=>tot+=P.weights[t]);let r=Math.random()*tot,type=pool[0];
+  for(const t of pool){r-=P.weights[t];if(r<=0){type=t;break}}
+  let x,y,ok=false;const R=Math.hypot(W,H)/2+20;
   for(let i=0;i<10&&!ok;i++){const a=Math.random()*6.283;x=G.px+Math.cos(a)*R;y=G.py+Math.sin(a)*R;ok=inPoly(x,y)}
-  if(!ok)return false;
-  const hp=D.hp*(1+G.t*D.hpPerSec);
-  G.enemies.push({x,y,s:D.scale,hp,max:hp,spd:D.speed,v:0,ph:Math.random()*6,flash:0,dmg:0,dean:true,state:'chase',timer:0});
+  if(!ok){const a=Math.random()*6.283;x=G.px+Math.cos(a)*R;y=G.py+Math.sin(a)*R}
+  G.pursuers.push({pur:true,type,x,y,s:P[type].scale,ph:Math.random()*6,state:'chase',timer:0,carry:null});
   return true;
 }
+function updPursuers(dt){
+  const P=CFG.pursuers;
+  if(G.slit>0)G.slit-=dt;
+  if(G.pGrace>0)G.pGrace-=dt;
+  G.purT-=dt;
+  if(G.purT<=0){G.purT=rnd(...P.every);if(G.pursuers.length<P.maxAlive&&G.limit-G.t>P.noSpawnLast)spawnPursuer()}
+  const far=Math.hypot(W,H)/2+40;
+  for(let i=G.pursuers.length-1;i>=0;i--){
+    const e=G.pursuers[i],dx=G.px-e.x,dy=G.py-e.y,d=Math.hypot(dx,dy)||1;
+    if(e.state==='leave'){
+      e.timer-=dt;e.x-=dx/d*P.speed*1.1*dt;e.y-=dy/d*P.speed*1.1*dt;
+      if(e.timer<=0||d>far+150)G.pursuers.splice(i,1);
+      continue;
+    }
+    const sp=(P.speed+P.speedPerMin*G.t/60)*(d>far?P.catchUpBoost:1);
+    e.x+=dx/d*sp*dt;e.y+=dy/d*sp*dt;
+    if(d<P.catchRadius&&G.pGrace<=0){catchEffect(e);e.state='leave';e.timer=P.leaveTime}
+  }
+}
+function catchEffect(e){
+  const P=CFG.pursuers;G.pGrace=P.grace;G.shake=.3;
+  switch(e.type){
+    case 'dean':openBeer(e);G.pGrace=P.dean.freeze+P.grace;break;
+    case 'rob':G.trip=P.rob.tripDuration;sfx.trip();toast(TEXT.ui.robToast,2.6);floatText(G.px,G.py-18,TEXT.ui.chocFloat,'#ff5fe0');for(let i=0;i<14;i++)burst(G.px,G.py-8,'hsl('+(i*26)+',90%,60%)',2,70);break;
+    case 'ed':stealWeapon(e);break;
+    case 'phil':toast(TEXT.ui.philToast,2.4);sfx.alarm();startBhajiAlert();break;
+    case 'ry':G.slit=P.ry.duration;sfx.form();toast(TEXT.ui.ryToast,2.4);break;
+  }
+}
+function stealWeapon(e){
+  const own=ownedWeapons();
+  if(!own.length){toast(TEXT.ui.edNothing,2);return}
+  const id=pick(own),lvl=G.wp[id],pos=farSpot();
+  G.wp[id]=0;e.carry=id;
+  G.eggs.push({x:pos[0],y:pos[1],type:'weapon',wid:id,lvl,ph:Math.random()*6,life:1e9});
+  refreshItems();toast(TEXT.ui.edToast.replace('{weapon}',ITEMS[id].n),3.2);sfx.smash();
+}
+function startBhajiAlert(){
+  if(G.bhaji)return;
+  G.bhaji={t:CFG.bhaji.timeLimit,last:99};toast(TEXT.ui.argyToast,2.8);sfx.alarm();G.shake=.3;
+}
 function openBeer(e){
-  const D=CFG.dean;G.frozen=D.freeze;e.state='drink';e.timer=D.drinkTime;
-  toast(TEXT.ui.deanToast,2);sfx.can();G.shake=.3;G.flash=.2;
+  const D=CFG.pursuers.dean;G.frozen=D.freeze;
+  toast(TEXT.ui.deanToast,2);sfx.can();G.flash=.2;
   for(let i=0;i<26;i++){const k=Math.random(),dx=G.px-e.x,dy=G.py-6-e.y;G.fx_.push({x:e.x,y:e.y-8,vx:dx*(.9+k*.8)+rnd(-8,8),vy:dy*(.9+k*.8)-20+rnd(-8,8),t:0,life:rnd(.4,.9),col:Math.random()<.5?'#f0b020':'#fff',sz:Math.random()<.4?2:1})}
 }
 function spawnBoss(){
@@ -713,7 +781,7 @@ function toast(s,dur=1.6){const b=$('toast');b.textContent=s;b.style.display='bl
 function hit(e,d,nk){
   e.hp-=d;e.flash=.1;
   if(!e.boss&&!nk){const dx=e.x-G.px,dy=e.y-G.py,l=Math.hypot(dx,dy)||1;e.x+=dx/l*3;e.y+=dy/l*3}
-  if(e.hp<=0&&!e.dead){e.dead=true;if(!e.dean)G.kills++;burst(e.x,e.y,'#a23be8',e.boss?30:5,e.boss?110:45);if(e.boss)bossDown(e)}
+  if(e.hp<=0&&!e.dead){e.dead=true;G.kills++;burst(e.x,e.y,'#a23be8',e.boss?30:5,e.boss?110:45);if(e.boss)bossDown(e)}
 }
 function bossDown(e){
   G.bossKills++;G.shake=.4;sfx.lvl();toast(TEXT.ui.bossDown,1.8);
@@ -751,7 +819,7 @@ function update(dt){
   // timer end
   if(G.t>=G.limit){startShame('time');return}
   // move
-  if(G.frozen>0){G.frozen-=dt;if(G.frozen<=0)G.deanImmune=CFG.dean.immunity}else if(G.deanImmune>0)G.deanImmune-=dt;
+  if(G.frozen>0)G.frozen-=dt;
   const iv=G.frozen>0?{x:0,y:0}:inputVec();let sp=CFG.player.speed*F.spd*(1+CFG.buffs.elec.perLevel*G.buff.elec);
   if(inLake(G.px,G.py))sp*=CFG.player.lakeSlow;
   G.moving=!!(iv.x||iv.y);
@@ -770,14 +838,13 @@ function update(dt){
   G.eggT-=dt;
   if(G.eggT<=0){G.eggT=.35;let n=0;for(const e of G.eggs)if(e.type==='food')n++;const want=CFG.eggs.targetBase+G.form*CFG.eggs.targetPerForm;if(n<want)spawnEgg('food',CFG.eggs.spawnDistMin,CFG.eggs.spawnDistMax)}
   G.dogT-=dt;if(G.dogT<=0){G.dogT=rnd(...CFG.eggs.dogEvery);if(spawnEgg('dog',140,460))floatText(G.px,G.py-22,TEXT.ui.dogSpawn,'#c89a5c')}
-  G.chocT-=dt;if(G.chocT<=0){G.chocT=rnd(...CFG.chocolate.every);if(!G.eggs.some(e=>e.type==='choc'))spawnEgg('choc',120,420)}
   G.zincT-=dt;if(G.zincT<=0){G.zincT=rnd(...CFG.eggs.zincEvery);if(!G.eggs.some(e=>e.type==='zinc'))spawnEgg('zinc',120,420)}
   for(let i=G.eggs.length-1;i>=0;i--){
     const e=G.eggs[i];e.life-=dt;
     let dx=G.px-e.x,dy=G.py-(e.y);const d=Math.hypot(dx,dy);
-    if(F.magnet&&e.type!=='zinc'&&e.type!=='choc'&&d<F.magnet){const k=CFG.eggs.magnetPull*dt/(d||1);e.x+=dx*k;e.y+=dy*k}
+    if(F.magnet&&(e.type==='food'||e.type==='dog')&&d<F.magnet){const k=CFG.eggs.magnetPull*dt/(d||1);e.x+=dx*k;e.y+=dy*k}
     if(d<CFG.player.pickupRadius){G.eggs.splice(i,1);collect(e);continue}
-    if(e.life<=0||d>900)G.eggs.splice(i,1);
+    if(e.type!=='weapon'&&(e.life<=0||d>900))G.eggs.splice(i,1);
   }
   if(updBhaji(dt))return;
   updToilets(dt);
@@ -787,22 +854,13 @@ function update(dt){
   const rate=(CFG.enemies.spawnBase+G.t/60*CFG.enemies.spawnPerMin+(G.level-1)*CFG.enemies.spawnPerLevel)*G.diff.spawn;
   G.spawnAcc+=dt*rate;
   while(G.spawnAcc>=1){G.spawnAcc--;if(G.enemies.length<CFG.enemies.max)spawnEnemy()}
-  G.deanT-=dt;
-  if(G.deanT<=0){G.deanT=rnd(...CFG.dean.every);let n=0;for(const e of G.enemies)if(e.dean)n++;if(n<CFG.dean.max&&G.limit-G.t>CFG.dean.noSpawnLast)spawnDean()}
+  updPursuers(dt);
   if(G.t>=G.nextBoss&&G.limit-G.t>CFG.bosses.noSpawnLast&&spawnBoss())G.nextBoss+=CFG.bosses.every;
   const jr=1-Math.min(CFG.buffs.jacket.max,CFG.buffs.jacket.perLevel*G.buff.jacket);
   G.inv-=dt;
   const far=Math.hypot(W,H)/2+160;
   for(const e of G.enemies){
     const dx=G.px-e.x,dy=G.py-e.y,d=Math.hypot(dx,dy)||1;
-    if(e.dean){
-      e.flash-=dt;
-      if(e.state==='drink'){e.timer-=dt;if(e.timer<=0){e.dead=true;burst(e.x,e.y,'#999',6,40)}continue}
-      if(d>far+200){e.dead=true;continue}
-      e.x+=dx/d*e.spd*dt;e.y+=dy/d*e.spd*dt;
-      if(d<CFG.dean.triggerRadius&&G.frozen<=0&&G.deanImmune<=0)openBeer(e);
-      continue;
-    }
     if(d>far+120){const a=Math.random()*6.283,R=far-120;e.x=G.px+Math.cos(a)*R;e.y=G.py+Math.sin(a)*R}
     const a=Math.atan2(dy,dx)+(d>40?Math.sin(G.t*1.7+e.ph)*.3:0);
     e.x+=Math.cos(a)*e.spd*dt;e.y+=Math.sin(a)*e.spd*dt;e.flash-=dt;
@@ -826,7 +884,7 @@ function update(dt){
 function collect(e){
   const F=FORMS[G.form];
   if(e.type==='zinc'){G.hp=G.maxhp;sfx.zinc();floatText(G.px,G.py-18,TEXT.ui.zinc,'#6ad0ff');burst(G.px,G.py-8,'#6ad0ff',12,60);return}
-  if(e.type==='choc'){G.trip=CFG.chocolate.duration;sfx.trip();toast(TEXT.ui.chocToast,2.2);floatText(G.px,G.py-18,TEXT.ui.chocFloat,'#ff5fe0');for(let i=0;i<14;i++)burst(G.px,G.py-8,'hsl('+(i*26)+',90%,60%)',2,70);return}
+  if(e.type==='weapon'){G.wp[e.wid]=Math.max(G.wp[e.wid],e.lvl);refreshItems();toast(TEXT.ui.edGotBack.replace('{weapon}',ITEMS[e.wid].n),1.8);sfx.lvl();burst(G.px,G.py-8,'#fff',14,70);return}
   if(F.smash&&Math.random()<F.smash){G.smashed++;sfx.smash();floatText(G.px,G.py-18,TEXT.ui.smashed,'#ff4a4a');burst(e.x,e.y,'#ffd23a',10,70);return}
   const dog=e.type==='dog',val=dog?CFG.eggs.dogValue:1;
   G.score+=val;dog?G.dogs++:G.food++;
@@ -849,7 +907,7 @@ function updBhaji(dt){
   if(!G.bhaji){
     G.bhajiT-=dt;
     if(G.bhajiT<=0){
-      if(G.limit-G.t>B.noProcLast){G.bhaji={t:B.timeLimit,last:99};toast(TEXT.ui.argyToast,2.8);sfx.alarm();G.shake=.3}
+      if(G.limit-G.t>B.noProcLast)startBhajiAlert();
       else G.bhajiT=5;
     }
     return false;
@@ -900,7 +958,7 @@ function weapons(dt){
   }
   // whisk
   G.cd.whisk-=dt;if(G.swing){G.swing.t+=dt;if(G.swing.t>=G.swing.dur)G.swing=null}
-  if(G.cd.whisk<=0){const t=nearest(G.enemies,G.px,G.py-6,CFG.whisk.range);if(t){hit(t,CFG.whisk.dmgBase+CFG.whisk.dmgPerLevel*w.whisk);G.swing={t:0,dur:.28,a0:Math.atan2(t.y-G.py,t.x-G.px)};G.cd.whisk=Math.max(CFG.whisk.cdMin,CFG.whisk.cdStart-CFG.whisk.cdPerLevel*(w.whisk-1));sfx.whisk()}}
+  if(G.cd.whisk<=0&&w.whisk>0){const t=nearest(G.enemies,G.px,G.py-6,CFG.whisk.range);if(t){hit(t,CFG.whisk.dmgBase+CFG.whisk.dmgPerLevel*w.whisk);G.swing={t:0,dur:.28,a0:Math.atan2(t.y-G.py,t.x-G.px)};G.cd.whisk=Math.max(CFG.whisk.cdMin,CFG.whisk.cdStart-CFG.whisk.cdPerLevel*(w.whisk-1));sfx.whisk()}}
   // cans
   if(w.cans>0){G.cd.cans-=dt;if(G.cd.cans<=0){G.cd.cans=CFG.cans.cd;const n=CFG.cans.countBase+Math.floor(w.cans/CFG.cans.levelsPerExtraCan);for(let i=0;i<n;i++){const e=nearest(G.enemies,G.px+rnd(-40,40),G.py+rnd(-40,40),CFG.cans.range);let x,y;if(e&&Math.random()<.8){x=e.x;y=e.y}else{x=G.px+rnd(-60,60);y=G.py+rnd(-60,60)}G.cans.push({x,y,t:-i*.1})}}}
   // yoyo
@@ -913,7 +971,7 @@ function weapons(dt){
 function openLevelUp(){
   G.state='levelup';sfx.lvl();jid=null;jv.x=jv.y=0;$('stick').style.display='none';
   $('lutitle').textContent='LEVEL '+(G.level-G.pend+1)+'!';
-  const avail=Object.keys(ITEMS).filter(id=>lv(id)<CFG.levels.maxItemLevel);
+  const avail=Object.keys(ITEMS).filter(id=>lv(id)<CFG.levels.maxItemLevel&&!G.eggs.some(e=>e.type==='weapon'&&e.wid===id));
   avail.sort(()=>Math.random()-.5);
   const opts_=avail.slice(0,3).map(id=>({id}));
   if(!opts_.length)opts_.push({id:'roll'});
@@ -949,7 +1007,7 @@ function startShame(reason){
 }
 function updShame(dt){
   const s=G.sh;s.t+=dt;const r=s.t/1.5*s.max;
-  for(const e of G.enemies){if(e.dead)continue;if(Math.hypot(e.x-G.px,e.y-G.py)<=r){e.dead=true;if(!e.dean)G.kills++;burst(e.x,e.y,Math.random()<.5?'#ff3df0':'#fff',4,60)}}
+  for(const e of G.enemies){if(e.dead)continue;if(Math.hypot(e.x-G.px,e.y-G.py)<=r){e.dead=true;G.kills++;burst(e.x,e.y,Math.random()<.5?'#ff3df0':'#fff',4,60)}}
   G.enemies=G.enemies.filter(e=>!e.dead);
   for(let i=G.fx_.length-1;i>=0;i--){const f=G.fx_[i];f.t+=dt;f.x+=f.vx*dt;f.y+=f.vy*dt;f.vy+=90*dt;if(f.t>f.life)G.fx_.splice(i,1)}
   if(G.shake>0)G.shake-=dt;
@@ -994,26 +1052,27 @@ function render(){
   // eggs
   for(const e of G.eggs){
     const sx=X(e.x),sy=Y(e.y);if(sx<-12||sx>W+12||sy<-12||sy>H+12)continue;
-    const spr=SPR[e.type==='food'?'egg':e.type],bob=Math.round(Math.sin(G.t*4+e.ph)*1);
+    const spr=e.type==='weapon'?ICON[e.wid]:SPR[e.type==='food'?'egg':e.type],bob=Math.round(Math.sin(G.t*4+e.ph)*1);
     g.fillStyle='#0004';g.fillRect(sx-3,sy+3,6,1);
-    if(e.type!=='food'&&((G.t*4|0)%2)){g.fillStyle=e.type==='zinc'?'#8fe0ff':e.type==='choc'?'#ff9af0':'#ffe27a';g.fillRect(sx-7,sy-9+bob,1,1);g.fillRect(sx+6,sy-5+bob,1,1);g.fillRect(sx+4,sy-11+bob,1,1)}
+    if(e.type!=='food'&&((G.t*4|0)%2)){g.fillStyle=e.type==='zinc'?'#8fe0ff':'#ffe27a';g.fillRect(sx-7,sy-9+bob,1,1);g.fillRect(sx+6,sy-5+bob,1,1);g.fillRect(sx+4,sy-11+bob,1,1)}
     g.drawImage(spr,sx-(spr.width>>1),sy-spr.height+3+bob);
+    if(e.type==='weapon'){g.fillStyle='#fff';const pr=9+Math.round(Math.sin(G.t*6)*2);for(let i=0;i<24;i++){const a=i/24*6.283;g.fillRect(Math.round(sx+Math.cos(a)*pr),Math.round(sy-3+Math.sin(a)*pr*.8),1,1)}}
   }
   // falling cans
   for(const c of G.cans){if(c.t<0)continue;const k=c.t/.45;g.drawImage(SPR.can,X(c.x)-2,Y(c.y)-Math.round((1-k)*90)-5)}
   // entities sorted
-  const list=G.enemies.slice();list.push({player:true,y:G.py});list.sort((a,b)=>a.y-b.y);
+  const list=G.enemies.concat(G.pursuers||[]);list.push({player:true,y:G.py});list.sort((a,b)=>a.y-b.y);
   for(const e of list){
     if(e.player){drawPlayer(g,X,Y);continue}
+    if(e.pur){drawPursuer(g,e,X,Y);continue}
     const sx=X(e.x),sy=Y(e.y);if(sx<-30||sx>W+30||sy<-30||sy>H+40)continue;
-    const fr=(Math.floor(G.t*5+e.ph)&1),spr=e.boss?BOSS_SPR[fr]:e.dean?DEAN_SPR[fr]:ESPR[e.v][fr],w=Math.round(spr.width*e.s),h=Math.round(spr.height*e.s);
+    const fr=(Math.floor(G.t*5+e.ph)&1),spr=e.boss?BOSS_SPR[fr]:ESPR[e.v][fr],w=Math.round(spr.width*e.s),h=Math.round(spr.height*e.s);
     g.fillStyle='#0004';g.fillRect(sx-(w>>2),sy-1,w>>1,Math.max(1,h>>3));
     if(e.flash>0){g.globalCompositeOperation='lighter'}
     g.drawImage(spr,sx-(w>>1),sy-h,w,h);
     g.globalCompositeOperation='source-over';
     if(e.boss){const bw=Math.max(24,w>>1);g.fillStyle='#000';g.fillRect(sx-(bw>>1)-1,sy-h-6,bw+2,5);g.fillStyle='#e04040';g.fillRect(sx-(bw>>1),sy-h-5,Math.max(0,Math.round(bw*e.hp/e.max)),3);txtC(g,e.name,sx,sy-h-14,'#ffd23a',1,'#000')}
     else if(e.s>1.7&&e.hp<e.max){g.fillStyle='#000';g.fillRect(sx-8,sy-h-4,16,3);g.fillStyle='#e04040';g.fillRect(sx-7,sy-h-3,Math.max(0,Math.round(14*e.hp/e.max)),1)}
-    if(e.dean){txtC(g,TEXT.ui.deanName,sx,sy-h-8,'#fff',1,'#000');if(e.state==='drink')g.drawImage(SPR.can,sx+(w>>1)-3,sy-Math.round(h*.7))}
   }
   // whisk swing
   if(G.swing){const s=G.swing,k=s.t/s.dur;for(let i=0;i<7;i++){const a=s.a0-Math.PI+(k*6.283)-i*.22,r=20;const sz=i===0?3:2;g.fillStyle=i===0?'#fff':i<3?'#cfe0ff':'#7f9ad0';g.fillRect(X(G.px+Math.cos(a)*r)-1,Y(G.py-6+Math.sin(a)*r*.9)-1,sz,sz)}}
@@ -1034,8 +1093,20 @@ function render(){
   if(G.frozen>0){g.fillStyle='rgba(120,200,255,'+(.1+.04*Math.sin(G.t*10))+')';g.fillRect(0,0,W,H)}
   if(G.sf>0){g.fillStyle='rgba(255,140,40,'+(.08+.05*Math.sin(G.t*14))+')';g.fillRect(0,0,W,H)}
   if(G.trip>0){const ccx=X(G.px),ccy=Y(G.py-6);g.globalAlpha=.3;for(let i=0;i<6;i++){const r=((G.t*40+i*22)%130);g.fillStyle='hsl('+((G.t*200+i*60)%360|0)+',90%,60%)';for(let k=0;k<70;k++){const a=k/70*6.283;g.fillRect(Math.round(ccx+Math.cos(a)*r),Math.round(ccy+Math.sin(a)*r),3,3)}}g.globalAlpha=1}
+  if(G.slit>0){const D=CFG.pursuers.ry,k=Math.min(1,(D.duration-G.slit)/.35,G.slit/.35),cy=Math.round(H/2),half=Math.round(H/2+(D.slitHeight/2-H/2)*k);g.fillStyle='#000';g.fillRect(0,0,W,cy-half);g.fillRect(0,cy+half,W,H-cy-half);g.fillStyle='#333';g.fillRect(0,cy-half-1,W,1);g.fillRect(0,cy+half,W,1)}
   if(G.flash>0){g.fillStyle='rgba(255,255,255,'+Math.min(.5,G.flash)+')';g.fillRect(0,0,W,H)}
   if(G.hp<35&&G.state==='play'){const a=.1+.08*Math.sin(G.t*8);g.fillStyle='rgba(255,0,0,'+a+')';g.fillRect(0,0,W,H)}
+}
+function drawPursuer(g,e,X,Y){
+  const sx=X(e.x),sy=Y(e.y);if(sx<-30||sx>W+30||sy<-40||sy>H+50)return;
+  const fr=Math.floor(G.t*5+e.ph)&1,spr=PALSPR[e.type][fr],w=Math.round(spr.width*e.s),h=Math.round(spr.height*e.s);
+  g.fillStyle='#0004';g.fillRect(sx-(w>>2),sy-1,w>>1,2);
+  g.drawImage(spr,sx-(w>>1),sy-h,w,h);
+  txtC(g,TEXT.ui.pursuerNames[e.type],sx,sy-h-8,'#fff',1,'#000');
+  const hx=sx+(w>>1)-1,hy=sy-Math.round(h*.45);
+  if(e.type==='dean'&&e.state==='leave')g.drawImage(SPR.can,hx-1,hy-5);
+  if(e.type==='ry'){g.fillStyle='#d02020';g.fillRect(hx,hy,4,2);g.fillStyle='#e8eef8';g.fillRect(hx+4,hy,5,1);if(((G.t*3)|0)%2)g.fillRect(hx+8,hy-1,1,1)}
+  if(e.type==='ed'&&e.carry&&ICON[e.carry])g.drawImage(ICON[e.carry],hx-4,hy-14);
 }
 function drawLandmarks(g,X,Y){
   const busy=G.sf>0||G.toiletCd>0;
@@ -1073,14 +1144,21 @@ function drawPlayer(g,X,Y){
   g.save();g.translate(sx,sy-15-(bob?1:0));if(G.fx<0){g.translate(12,0);g.scale(-1,1)}g.drawImage(spr,G.fx<0?12-12:0,0);g.restore();
   if(G.frozen>0){g.fillStyle='rgba(140,220,255,.6)';g.fillRect(sx-8,sy-18,16,19);g.fillStyle='rgba(255,255,255,.8)';g.fillRect(sx-8,sy-18,16,2);g.fillRect(sx-8,sy-18,2,19);g.fillRect(sx-4,sy-12,2,6);g.fillRect(sx+3,sy-8,2,4)}
 }
+function edgeMark(g,cx,cy,wx,wy,fn){
+  const sx=wx-cx,sy=wy-cy;if(sx>10&&sx<W-10&&sy>34&&sy<H-10)return;
+  const dx=sx-W/2,dy=sy-H/2,t=Math.min((W/2-10)/Math.abs(dx||1e-3),(H/2-26)/Math.abs(dy||1e-3));
+  fn(Math.round(W/2+dx*t),Math.round(H/2+dy*t));
+}
 function markers(g,cx,cy){
+  for(const q of (G.pursuers||[]))if(q.state==='chase')edgeMark(g,cx,cy,q.x,q.y,(mx,my)=>{g.fillStyle='#d02020';g.fillRect(mx-5,my-7,10,14);txtC(g,q.type[0],mx+1,my-3,'#fff')});
+  for(const e of G.eggs)if(e.type==='weapon')edgeMark(g,cx,cy,e.x,e.y,(mx,my)=>{g.fillStyle='#000b';g.fillRect(mx-7,my-7,14,14);g.drawImage(ICON[e.wid],mx-6,my-6)});
   const bs=nearest(G.enemies.filter(e=>e.boss),G.px,G.py,1e9);
   if(bs){const sx=bs.x-cx,sy=bs.y-cy;if(!(sx>10&&sx<W-10&&sy>34&&sy<H-10)){const dx=sx-W/2,dy=sy-H/2,t=Math.min((W/2-10)/Math.abs(dx||1e-3),(H/2-26)/Math.abs(dy||1e-3)),mx=Math.round(W/2+dx*t),my=Math.round(H/2+dy*t);g.fillStyle=(G.t*4|0)%2?'#ff3b3b':'#7a1020';g.fillRect(mx-5,my-7,10,14);txtC(g,'!',mx+1,my-3,'#fff')}}
   if(G.bhaji){const sx=BHAJI_POS[0]-cx,sy=BHAJI_POS[1]-cy;if(!(sx>10&&sx<W-10&&sy>34&&sy<H-10)){const dx=sx-W/2,dy=sy-H/2,t=Math.min((W/2-10)/Math.abs(dx||1e-3),(H/2-26)/Math.abs(dy||1e-3)),mx=Math.round(W/2+dx*t),my=Math.round(H/2+dy*t);g.fillStyle=(G.t*4|0)%2?'#ffd23a':'#ff7a1a';g.fillRect(mx-6,my-7,12,14);txtC(g,'B',mx+1,my-3,'#2a140a')}}
-  const seen={food:null,dog:null,zinc:null,choc:null};
+  const seen={food:null,dog:null,zinc:null};
   for(const e of G.eggs){const d=(e.x-G.px)**2+(e.y-G.py)**2;if(!seen[e.type]||d<seen[e.type].d)seen[e.type]={e,d}}
-  for(const k of ['food','dog','zinc','choc']){
-    const s=seen[k];if(!s)continue;if(k==='zinc'&&G.hp>=G.maxhp*CFG.eggs.zincOnlyShowBelow)continue;if(k==='choc')continue;
+  for(const k of ['food','dog','zinc']){
+    const s=seen[k];if(!s)continue;if(k==='zinc'&&G.hp>=G.maxhp*CFG.eggs.zincOnlyShowBelow)continue;
     const sx=s.e.x-cx,sy=s.e.y-cy;if(sx>10&&sx<W-10&&sy>34&&sy<H-10)continue;
     const dx=sx-W/2,dy=sy-H/2,t=Math.min((W/2-10)/Math.abs(dx||1e-3),(H/2-26)/Math.abs(dy||1e-3));
     const mx=Math.round(W/2+dx*t),my=Math.round(H/2+dy*t),spr=SPR[k==='food'?'egg':k];
@@ -1103,6 +1181,7 @@ function updHUD(){
    if(G.bhaji)h+='<div class="chip red">'+TEXT.ui.argyChip+' '+Math.ceil(G.bhaji.t)+'S</div>';
    if(G.frozen>0)h+='<div class="chip ice">'+TEXT.ui.frozenChip+' '+Math.ceil(G.frozen)+'S</div>';
    if(G.sf>0)h+='<div class="chip org">'+TEXT.ui.sfChip+' '+Math.ceil(G.sf)+'S</div>';
+   if(G.slit>0)h+='<div class="chip gry">'+TEXT.ui.slitChip+' '+Math.ceil(G.slit)+'S</div>';
    if(G.trip>0)h+='<div class="chip pur">'+TEXT.ui.chocChip+' '+Math.ceil(G.trip)+'S</div>';
    const c=$('chips');if(c.dataset.h!==h){c.dataset.h=h;c.innerHTML=h}}
   [...$('angbar').querySelectorAll('.pips b')].forEach((b,i)=>b.classList.toggle('on',i<=G.form));
