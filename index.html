@@ -386,6 +386,7 @@ const CFG={
   music:{
     enabled:true,
     file:'bleed-8bit.mid',      // loops forever while a round is running
+    tripFile:'trip-8bit.mid',   // swapped in while Rob's mushroom chocolate has you tripping (back to the main loop after)
     volume:.10,                 // 0-1
     squareVol:.55, triangleVol:.9, kickVol:.9, snareVol:.5, hatVol:.25, cymbalVol:.3,   // per-voice mix
   },
@@ -723,12 +724,13 @@ function beep(f,d=.08,type='square',v=.04,slide=0){
   try{const o=AC.createOscillator(),g=AC.createGain(),t=AC.currentTime;o.type=type;o.frequency.setValueAtTime(f,t);if(slide)o.frequency.exponentialRampToValueAtTime(Math.max(30,f+slide),t+d);g.gain.setValueAtTime(v,t);g.gain.exponentialRampToValueAtTime(.0001,t+d);o.connect(g).connect(AC.destination);o.start(t);o.stop(t+d)}catch(e){}
 }
 /* ---------- 8-bit soundtrack: tiny MIDI parser + WebAudio chip synth ---------- */
-const MUSIC={notes:[],loopSec:0,gain:null,timer:null,loopStart:0,idx:0,noise:null,on:false};
+const MUSIC={tracks:{main:{notes:[],loopSec:0},trip:{notes:[],loopSec:0}},cur:'main',gain:null,timer:null,loopStart:0,idx:0,noise:null};
 async function loadMusic(){
   if(!CFG.music.enabled)return;
-  // ?music=other.mid in the URL plays a different MIDI file (handy for trying loops locally)
+  // ?music=other.mid in the URL plays a different MIDI file as the main loop (handy for trying loops locally)
   const file=new URLSearchParams(location.search).get('music')||CFG.music.file;
-  try{parseMidi(await (await fetch(file)).arrayBuffer())}catch(e){}
+  const get=async(f,k)=>{try{MUSIC.tracks[k]=parseMidi(await (await fetch(f)).arrayBuffer())||MUSIC.tracks[k]}catch(e){}};
+  await Promise.all([get(file,'main'),get(CFG.music.tripFile,'trip')]);
 }
 function parseMidi(buf){
   const d=new DataView(buf);let p=0;
@@ -751,8 +753,7 @@ function parseMidi(buf){
     p=end;
   }
   const spt=tempo/1e6/tpb;
-  MUSIC.notes=raw.map(r=>({t:r.s*spt,d:Math.max(.04,(r.e-r.s)*spt),n:r.n,ch:r.ch,v:r.v/127})).sort((a,b)=>a.t-b.t);
-  MUSIC.loopSec=endTick*spt;
+  return{notes:raw.map(r=>({t:r.s*spt,d:Math.max(.04,(r.e-r.s)*spt),n:r.n,ch:r.ch,v:r.v/127})).sort((a,b)=>a.t-b.t),loopSec:endTick*spt};
 }
 function musicNote(n,t0){
   const M=CFG.music,g=AC.createGain(),dst=MUSIC.gain;
@@ -776,21 +777,25 @@ function musicNote(n,t0){
   o.connect(g).connect(dst);o.start(t0);o.stop(end+.01);
 }
 function musicTick(){
-  if(!AC||!MUSIC.notes.length)return;
+  if(!AC)return;
+  // swap to the trip track while Rob's chocolate is active, back to the main loop afterwards
+  const want=(G&&G.trip>0&&MUSIC.tracks.trip.notes.length)?'trip':'main';
+  if(want!==MUSIC.cur){MUSIC.cur=want;MUSIC.idx=0;MUSIC.loopStart=AC.currentTime+.05}
+  const T=MUSIC.tracks[MUSIC.cur];if(!T.notes.length)return;
   const ahead=AC.currentTime+.3;
   while(true){
-    const n=MUSIC.notes[MUSIC.idx];
-    if(!n){MUSIC.idx=0;MUSIC.loopStart+=MUSIC.loopSec;continue}
+    const n=T.notes[MUSIC.idx];
+    if(!n){MUSIC.idx=0;MUSIC.loopStart+=T.loopSec;continue}
     const t0=MUSIC.loopStart+n.t;if(t0>ahead)break;
     if(t0>=AC.currentTime-.05)musicNote(n,Math.max(t0,AC.currentTime));
     MUSIC.idx++;
   }
 }
 function startMusic(){
-  if(!CFG.music.enabled||!AC||!MUSIC.notes.length||MUSIC.timer)return;
+  if(!CFG.music.enabled||!AC||!MUSIC.tracks.main.notes.length||MUSIC.timer)return;
   if(!MUSIC.noise){const b=AC.createBuffer(1,AC.sampleRate*.3,AC.sampleRate),a=b.getChannelData(0);for(let i=0;i<a.length;i++)a[i]=Math.random()*2-1;MUSIC.noise=b}
   MUSIC.gain=AC.createGain();MUSIC.gain.gain.value=muted?0:CFG.music.volume;MUSIC.gain.connect(AC.destination);
-  MUSIC.idx=0;MUSIC.loopStart=AC.currentTime+.1;MUSIC.timer=setInterval(musicTick,60);musicTick();
+  MUSIC.cur='main';MUSIC.idx=0;MUSIC.loopStart=AC.currentTime+.1;MUSIC.timer=setInterval(musicTick,60);musicTick();
 }
 function stopMusic(){
   if(MUSIC.timer){clearInterval(MUSIC.timer);MUSIC.timer=null}
