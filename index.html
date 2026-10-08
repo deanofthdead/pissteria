@@ -1484,7 +1484,25 @@ buildOpts();showMenu();
 loadMusic();
 
 // installable app: service worker + install button (Android/Chrome) + iOS hint
-if('serviceWorker' in navigator&&/^https?:$/.test(location.protocol))navigator.serviceWorker.register('sw.js').catch(()=>{});
+if('serviceWorker' in navigator&&/^https?:$/.test(location.protocol)){
+  navigator.serviceWorker.register('sw.js').catch(()=>{});
+  // a new service worker took over: reload to pick up the new game (never mid-round)
+  let reloaded=false;
+  navigator.serviceWorker.addEventListener('controllerchange',()=>{if(reloaded||!idle())return;reloaded=true;location.reload()});
+}
+// auto-update: when the app is opened (or comes back to the front) and no round is running, ask the server if the game changed
+const idle=()=>!G||G.state==='over';
+async function checkUpdate(){
+  if(!/^https?:$/.test(location.protocol)||!idle())return;
+  try{
+    const r=await fetch(location.pathname,{method:'HEAD',cache:'no-store'});
+    const tag=r.headers.get('etag')||r.headers.get('last-modified');if(!tag)return;
+    const prev=store.get('pissteria_ver');store.set('pissteria_ver',tag);
+    if(prev&&prev!==tag&&idle())location.reload();
+  }catch(e){}
+}
+checkUpdate();
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)checkUpdate()});
 {
   const standalone=matchMedia('(display-mode: standalone)').matches||navigator.standalone;
   let deferred=null;
