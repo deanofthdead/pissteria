@@ -368,7 +368,16 @@ const TEXT={
     "BREAKS 1 IN 4 FOOD EGGS!",
   ],
 
-  bossNames:["THE PUNDIT","KEYBOARD WARRIOR","PODCAST BRO","THE BLUE TICK","FACEBOOK ADMIN","DEBATE LORD"],
+  // boss order (loops). look: 'lefty' = crowned purple-haired boss, 'goth' = the jacket demon
+  bosses:[
+    {name:"THE PUNDIT",look:'lefty'},
+    {name:"KEYBOARD WARRIOR",look:'lefty'},
+    {name:"BATTLE JACKET SLEEP PARALYSIS DEMON",look:'goth'},
+    {name:"PODCAST BRO",look:'lefty'},
+    {name:"THE BLUE TICK",look:'lefty'},
+    {name:"FACEBOOK ADMIN",look:'lefty'},
+    {name:"DEBATE LORD",look:'lefty'},
+  ],
 
 
 
@@ -516,7 +525,9 @@ const PALSPR={
   phil:mkP(["...SSSSSS...","..ssssssss..","..ssssssss..","..sesssses..","..rssssssr..","..rrrrrrrr..",".rrrrrrrrrr.",".rrrrrrrrrr.","..rrrrrrrr..",".cccccccccc.","sccccccccccs","sccccccccccs",".cccccccccc.",".cccccccccc.","..cccccccc.."],["...jj..jj...","...jj..jj...","...jj..jj...","..jjj..jjj.."],["...jj..jj...","...jj..jj...","...jj..jj...","...jj..jj..."],{S:'#f4c0a0',s:'#e8b890',r:'#c0301a',e:'#111',c:'#505a64',j:'#2a2a3a'}),
   ry:mkP(["...SSSSSS...","..ssssssss..","..ssssssss..","..sesssses..","..ssssssss..","..sssmmsss..","...ssssss...",".cccccccccc.","sccccccccccs","sccccccccccs",".cccccccccc.","..cccccccc.."],LEGS_A,LEGS_B,{S:'#f4c8a8',s:'#e8b890',e:'#111',m:'#a02020',c:'#2a8a8a',j:'#2a3a4a'}),
 };
+const GOTH_SPR=[["...bb..bb...","..bbb..bbb.."],["...bb..bb...","...bb..bb..."]].map(l=>mk(["...hhhhhh...","..hhhhhhhh..",".hhPPPPPPhh.",".hhPePPePhh.",".hhPPPPPPhh.","..hhPmmPhh..","..hhhhhhhh..",".kkkkkkkkkk.","kkpkkkkkkrkk","PkkwkkkkgkkP",".kkrkkkykkk.",".kkkkkkkkkk.","..kkkkkkkk.."].concat(l),{h:'#0c0c10',P:'#e8e0ea',e:'#ff2020',m:'#5a1a2a',k:'#1e1e28',p:'#c02a6a',r:'#d02020',w:'#e8e8e8',g:'#2a9a4a',y:'#e0c020',b:'#101014'}));
 const BOSS_SPR=[["...dd..dd..."],["..dd....dd.."]].map(l=>mk(["...y.yy.y...","...yyyyyy..."].concat(EROWS,l),{p:'#a23be8',P:'#cf8bff',s:'#eab890',e:'#111',m:'#6a2020',c:'#7a1020',d:'#333',y:'#ffd23a'}));
+const BOSS_LOOKS={lefty:BOSS_SPR,goth:GOTH_SPR};
 
 /* =====================================================================
    WORLD  (ArcTanGent festival site, redrawn top-down in 8-bit)
@@ -769,9 +780,9 @@ function spawnBoss(){
   const B=CFG.bosses;let x,y,ok=false;const R=Math.hypot(W,H)/2+30;
   for(let i=0;i<14&&!ok;i++){const a=Math.random()*6.283;x=G.px+Math.cos(a)*R;y=G.py+Math.sin(a)*R;ok=inPoly(x,y)}
   if(!ok)return false;
-  const n=G.bossN++,sc=Math.min(B.scaleMax,B.scale+n*B.scalePerBoss),hp=B.hp+n*B.hpPerBoss;
-  G.enemies.push({x,y,s:sc,hp,max:hp,spd:B.speed,v:0,ph:0,flash:0,dmg:B.contactDmg,boss:true,name:TEXT.bossNames[n%TEXT.bossNames.length]});
-  toast(TEXT.ui.bossIncoming+' '+TEXT.bossNames[n%TEXT.bossNames.length],2.2);say(pick(TEXT.speech),2.6);G.shake=.4;sfx.form();
+  const n=G.bossN++,kind=TEXT.bosses[n%TEXT.bosses.length],sc=Math.min(B.scaleMax,B.scale+n*B.scalePerBoss),hp=B.hp+n*B.hpPerBoss;
+  G.enemies.push({x,y,s:sc,hp,max:hp,spd:B.speed,v:0,ph:0,flash:0,dmg:B.contactDmg,boss:true,name:kind.name,look:kind.look});
+  toast(TEXT.ui.bossIncoming+' '+kind.name,2.4);say(pick(TEXT.speech),2.6);G.shake=.4;sfx.form();
   return true;
 }
 function floatText(x,y,s,col){G.texts.push({x,y,s,col,t:0})}
@@ -1066,7 +1077,7 @@ function render(){
     if(e.player){drawPlayer(g,X,Y);continue}
     if(e.pur){drawPursuer(g,e,X,Y);continue}
     const sx=X(e.x),sy=Y(e.y);if(sx<-30||sx>W+30||sy<-30||sy>H+40)continue;
-    const fr=(Math.floor(G.t*5+e.ph)&1),spr=e.boss?BOSS_SPR[fr]:ESPR[e.v][fr],w=Math.round(spr.width*e.s),h=Math.round(spr.height*e.s);
+    const fr=(Math.floor(G.t*5+e.ph)&1),spr=e.boss?(BOSS_LOOKS[e.look]||BOSS_SPR)[fr]:ESPR[e.v][fr],w=Math.round(spr.width*e.s),h=Math.round(spr.height*e.s);
     g.fillStyle='#0004';g.fillRect(sx-(w>>2),sy-1,w>>1,Math.max(1,h>>3));
     if(e.flash>0){g.globalCompositeOperation='lighter'}
     g.drawImage(spr,sx-(w>>1),sy-h,w,h);
