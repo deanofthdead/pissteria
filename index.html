@@ -326,6 +326,24 @@ const CFG={
     ginger:{every:[60,95],  lifetime:70, duration:10},          // Lake District Gingerbread: anger meter paused for this many sec
   },
 
+  /* ---- WILL: a sleeping helper somewhere on the map ----
+     Wake him by walking up to him. He follows you and kicks the baddies for a while.
+     Then there's a small chance he stops you for a conversation. And he doesn't stop. ---- */
+  will:{
+    chance:.6,                  // chance a given game has Will at all
+    at:[.1,.5],                 // when he turns up (asleep), as a fraction of the round [min,max]
+    minDist:600,                // he's put at least this far from Pork
+    wakeRadius:18,              // walk this close to wake him
+    duration:20,                // sec he helps for
+    speed:84, followDist:26,    // px/sec, and how close he likes to stay
+    kickEvery:.55, kickRange:38, kickDmg:60,
+    talkChance:1/75,            // chance (after the help runs out) that he stops you for a chat
+    stuckSeconds:0,             // how long the chat lasts. 0 = indefinitely (you'll die of it)
+    shoutEvery:2.4,             // sec between shouts
+    scale:1.25,
+    showMarker:true,            // "Z" arrow at the screen edge pointing at the sleeping Will
+  },
+
   /* ---- Dean's lost sunglasses: super rare, only some games ---- */
   sunglasses:{
     chance:.2,                  // chance a given game has them at all
@@ -443,8 +461,25 @@ const TEXT={
 
 
 
+  // WILL. Everything he shouts is redacted: the solid blocks are the bleeped words.
+  will:{
+    shout:[
+      "OI YOU ███████!","GET LOST YOU ██████ ██████!","TAKE THAT, ████████!",
+      "CALL THAT A KICK? YOU ███████!","NOT ON MY WATCH, ██████!","YOU ABSOLUTE ████████!",
+      "SHUT IT, ███████!","BLOODY ██████!",
+    ],
+    rant:[
+      "ANYWAY AS I WAS SAYING...","YOU CAN'T SAY ██████ ANY MORE","POLITICAL CORRECTNESS, ██████ GONE MAD",
+      "I'M NOT BEING ██████, IT'S JUST A JOKE","BACK IN MY DAY WE SAID ██████ AND NOBODY CARED",
+      "SOME OF MY BEST FRIENDS ARE ██████","WHERE WAS I? OH YES. ██████","DID I TELL YOU ABOUT THE ██████ AT WORK?",
+      "THEY'RE ALL ██████ THESE DAYS",
+    ],
+    bye:"RIGHT. I'M OFF.",
+  },
+
   // game-over screens: [heading, subtext]
   endings:{
+    willTalk:['GAME OVER','WILL WAS STILL TALKING.'],
     hp:    ['GAME OVER','THE SO CALLED LEFT GOT YOU.'],
     anger: ['GAME OVER','TOO ANGRY. UNCLE PLEASANT POPPED.'],
     shat:  ['YOU SHAT YOURSELF','A LEVEL-UP WAS TOO MUCH FOR YOUR BOWELS. ONE IN A HUNDRED, MATE.'],
@@ -477,6 +512,7 @@ const TEXT={
     philToast:'PHIL STARTED SOME ARGY BARGY!',
     ryToast:'RY GOT THE PENKNIFE OUT.\nTUNNEL VISION!',
     mintToast:'KENDAL MINT CAKE!\nEVERYTHING IN VIEW GONE!', mintFloat:'MINT CAKE', gingerToast:'LAKE DISTRICT GINGERBREAD!\nANGER PAUSED FOR {n}S', gingerFloat:'GINGERBREAD', gingerChip:'ANGER PAUSED',
+    willSpawn:'WILL IS ASLEEP SOMEWHERE ON THE MAP!', willWake:"WILL WOKE UP!\nHE'LL HELP FOR {n}S", willChip:'WILL HELPING', willTalk:'WILL STOPPED YOU\nFOR A CONVERSATION...', stuckChip:'STUCK TALKING TO WILL',
     rowBhajis:'BHAJIS EATEN', rowShades:'SUNGLASSES FOUND',
     shadesToast:"DEAN'S LOST SUNGLASSES\nARE ON THE MAP!", shadesGot:"DEAN'S LOST SUNGLASSES!\n+{n} FOOD EGGS", shadesFloat:'SUNGLASSES',
     barOpenToast:'THE BAR IS OPEN!\nGET THERE FOR AN APEROL SPRITZ!', barChip:'BAR OPEN', barClosed:'THE BAR CLOSED.', barName:'THE BAR',
@@ -528,6 +564,7 @@ function txt(g,s,x,y,col,sc=1,sh){
     g.fillStyle=pass?col:sh;
     const o=pass?0:sc;
     for(let i=0;i<s.length;i++){
+      if(s[i]==='█'){g.fillRect(x+i*4*sc+o,y+o,(s[i+1]==='█'?4:3)*sc,5*sc);continue}
       const gl=GL[s[i]];if(!gl)continue;
       for(let k=0;k<15;k++)if(gl[k]==='1')g.fillRect(x+i*4*sc+(k%3)*sc+o,y+((k/3)|0)*sc+o,sc,sc);
     }
@@ -596,6 +633,10 @@ const PALSPR={
   phil:mkP(["...SSSSSS...","..ssssssss..","..ssssssss..","..sesssses..","..rssssssr..","..rrrrrrrr..",".rrrrrrrrrr.",".rrrrrrrrrr.","..rrrrrrrr..",".cccccccccc.","sccccccccccs","sccccccccccs",".cccccccccc.",".cccccccccc.","..cccccccc.."],["...jj..jj...","...jj..jj...","...jj..jj...","..jjj..jjj.."],["...jj..jj...","...jj..jj...","...jj..jj...","...jj..jj..."],{S:'#f4c0a0',s:'#e8b890',r:'#c0301a',e:'#111',c:'#505a64',j:'#2a2a3a'}),
   ry:mkP(["...SSSSSS...","..ssssssss..","..ssssssss..","..sesssses..","..ssssssss..","..sssmmsss..","...ssssss...",".cccccccccc.","sccccccccccs","sccccccccccs",".cccccccccc.","..cccccccc.."],LEGS_A,LEGS_B,{S:'#f4c8a8',s:'#e8b890',e:'#111',m:'#a02020',c:'#2a8a8a',j:'#2a3a4a'}),
 };
+const WILL_TOP=["...hhhhhh...","..hhhhhhhh..","..hssssssh..","..sesssses..","..bbssssbb..","..bbbbbbbb..","..bbbbbbbb..","...bbbbbb...",".cccccccccc.","sccccccccccs","sccccccccccs",".cccccccccc.",".cccccccccc.","..cccccccc.."];
+const WILL_PAL={h:'#5a3a1a',s:'#e8b890',e:'#111',b:'#2a1a10',c:'#3a6a4a',j:'#2a3040'};
+const WILL_LEGS=[["...jj..jj...","...jj..jj...","...jj..jj...","..jjj..jjj.."],["...jj..jj...","...jj..jj...","...jj..jj...","...jj..jj..."]];
+const WILLSPR={awake:WILL_LEGS.map(l=>mk(WILL_TOP.concat(l),WILL_PAL)),asleep:WILL_LEGS.map(l=>mk(WILL_TOP.map((r,i)=>i===3?'..ssssssss..':r).concat(l),WILL_PAL))};
 const GOTH_SPR=[["...bb..bb...","..bbb..bbb.."],["...bb..bb...","...bb..bb..."]].map(l=>mk(["...hhhhhh...","..hhhhhhhh..",".hhPPPPPPhh.",".hhPePPePhh.",".hhPPPPPPhh.","..hhPmmPhh..","..hhhhhhhh..",".kkkkkkkkkk.","kkpkkkkkkrkk","PkkwkkkkgkkP",".kkrkkkykkk.",".kkkkkkkkkk.","..kkkkkkkk.."].concat(l),{h:'#0c0c10',P:'#e8e0ea',e:'#ff2020',m:'#5a1a2a',k:'#1e1e28',p:'#c02a6a',r:'#d02020',w:'#e8e8e8',g:'#2a9a4a',y:'#e0c020',b:'#101014'}));
 const BOSS_SPR=[["...dd..dd..."],["..dd....dd.."]].map(l=>mk(["...y.yy.y...","...yyyyyy..."].concat(EROWS,l),{p:'#a23be8',P:'#cf8bff',s:'#eab890',e:'#111',m:'#6a2020',c:'#7a1020',d:'#333',y:'#ffd23a'}));
 const BOSS_LOOKS={lefty:BOSS_SPR,goth:GOTH_SPR};
@@ -847,7 +888,7 @@ function newGame(){
     wp:{whisk:1,cans:0,yoyo:0,vicks:0},buff:{jacket:0,elec:0,mush:0},
     cd:{whisk:1,cans:1.5,yoyo:1,vicks:0},swing:null,yo:null,
     enemies:[],eggs:[],puddles:[],cans:[],fx_:[],texts:[],
-    spawnAcc:0,eggT:0,dogT:rnd(...CFG.eggs.dogEvery)*.6,zincT:rnd(...CFG.eggs.zincEvery)*.8,mintT:rnd(...CFG.items.mint.every)*.8,gingT:rnd(...CFG.items.ginger.every)*.8,angerFreeze:0,minty:0,sayT:5,meshAt:rnd(...CFG.meshuggah.at)*opts.len*60,sunAt:Math.random()<CFG.sunglasses.chance?rnd(...CFG.sunglasses.at)*opts.len*60:null,sunDone:false,shades:0,barAt:rnd(...CFG.bar.at)*opts.len*60,bar:null,barDone:false,demonAt:rnd(...CFG.bosses.demon.at)*opts.len*60,demonDone:false,meshDone:false,pursuers:[],purT:rnd(...CFG.pursuers.firstIn),pGrace:0,slit:0,frozen:0,bhaji:null,bhajiT:rnd(...CFG.bhaji.firstIn),bhajis:0,sf:0,sfAcc:0,toiletCd:0,shitWhy:'shat',trip:0,nextBoss:CFG.bosses.firstAt,bossN:0,bossKills:0,slow:0,bubbleT:0,toastT:0,sh:null,reason:''};
+    spawnAcc:0,eggT:0,dogT:rnd(...CFG.eggs.dogEvery)*.6,zincT:rnd(...CFG.eggs.zincEvery)*.8,mintT:rnd(...CFG.items.mint.every)*.8,gingT:rnd(...CFG.items.ginger.every)*.8,angerFreeze:0,minty:0,sayT:5,willAt:Math.random()<CFG.will.chance?rnd(...CFG.will.at)*opts.len*60:null,willDone:false,will:null,stuck:false,meshAt:rnd(...CFG.meshuggah.at)*opts.len*60,sunAt:Math.random()<CFG.sunglasses.chance?rnd(...CFG.sunglasses.at)*opts.len*60:null,sunDone:false,shades:0,barAt:rnd(...CFG.bar.at)*opts.len*60,bar:null,barDone:false,demonAt:rnd(...CFG.bosses.demon.at)*opts.len*60,demonDone:false,meshDone:false,pursuers:[],purT:rnd(...CFG.pursuers.firstIn),pGrace:0,slit:0,frozen:0,bhaji:null,bhajiT:rnd(...CFG.bhaji.firstIn),bhajis:0,sf:0,sfAcc:0,toiletCd:0,shitWhy:'shat',trip:0,nextBoss:CFG.bosses.firstAt,bossN:0,bossKills:0,slow:0,bubbleT:0,toastT:0,sh:null,reason:''};
   for(let i=0;i<CFG.eggs.startCount;i++)spawnEgg('food',60,CFG.eggs.spawnDistMax);
   cv.classList.remove('trip');refreshItems();hide('menu');hide('over');hide('pause');hide('levelup');
   $('hud').style.display='block';updHUD();
@@ -898,6 +939,47 @@ function meshuggah(){
   if(M.pals){
     const have=new Set(G.pursuers.map(q=>q.type)),base=Math.random()*6.283;let k=0;
     for(const t of PUR_TYPES){if(have.has(t)||(t==='ed'&&!ownedWeapons().length))continue;makePursuer(t,base+k++*1.2566)}
+  }
+}
+/* ---------- WILL ---------- */
+function spawnWill(){
+  const W_=CFG.will;let best=null,bd=-1;
+  for(let i=0;i<160;i++){
+    const x=rnd(30,WW-30),y=rnd(30,WH-30);if(!inPoly(x,y)||!inPoly(x+10,y)||!inPoly(x-10,y)||inLake(x,y))continue;
+    const d=Math.hypot(x-G.px,y-G.py);if(d>=W_.minDist){best=[x,y];break}if(d>bd){bd=d;best=[x,y]}
+  }
+  if(!best)return;
+  G.will={will:true,x:best[0],y:best[1],s:W_.scale,state:'asleep',t:0,ph:Math.random()*6,say:'',sayT:0,sayNext:0,kickT:0,kickAnim:0,fx:1,talkT:0};
+  toast(TEXT.ui.willSpawn,2.6);
+}
+function willLeave(w){w.state='leave';w.t=3.5;w.say=TEXT.will.bye;w.sayT=3}
+function updWill(dt){
+  const W_=CFG.will;
+  if(!G.will){if(G.willAt!==null&&!G.willDone&&G.t>=G.willAt){G.willDone=true;spawnWill()}return}
+  const w=G.will,dx=G.px-w.x,dy=G.py-w.y,d=Math.hypot(dx,dy)||1;
+  w.sayT-=dt;if(w.sayT<=0)w.say='';if(w.kickAnim>0)w.kickAnim-=dt;
+  if(w.state==='asleep'){
+    if(d<W_.wakeRadius){w.state='follow';w.t=W_.duration;w.sayNext=0;toast(TEXT.ui.willWake.replace('{n}',W_.duration),2.4);sfx.zinc();G.shake=.2}
+    return;
+  }
+  if(w.state==='follow'||w.state==='talk'){
+    if(d>W_.followDist){const sp=W_.speed*(d>120?1.8:1);w.x+=dx/d*sp*dt;w.y+=dy/d*sp*dt}
+    if(Math.abs(dx)>2)w.fx=dx>0?1:-1;
+  }
+  if(w.state==='follow'){
+    w.t-=dt;w.kickT-=dt;
+    if(w.kickT<=0){const e=nearest(G.enemies,w.x,w.y,W_.kickRange);if(e){hit(e,W_.kickDmg);w.kickT=W_.kickEvery;w.kickAnim=.18;w.fx=e.x>=w.x?1:-1;sfx.whisk()}}
+    w.sayNext-=dt;if(w.sayNext<=0){w.sayNext=W_.shoutEvery;w.say=pick(TEXT.will.shout);w.sayT=W_.shoutEvery*.85}
+    if(w.t<=0){
+      if(Math.random()<W_.talkChance){w.state='talk';G.stuck=true;w.sayNext=0;w.talkT=W_.stuckSeconds;toast(TEXT.ui.willTalk,3);sfx.alarm();G.shake=.3}
+      else willLeave(w);
+    }
+  }else if(w.state==='talk'){
+    w.sayNext-=dt;if(w.sayNext<=0){w.sayNext=2.8;w.say=pick(TEXT.will.rant);w.sayT=2.7}
+    if(W_.stuckSeconds>0){w.talkT-=dt;if(w.talkT<=0){G.stuck=false;willLeave(w)}}
+  }else if(w.state==='leave'){
+    w.t-=dt;w.x-=dx/d*W_.speed*.8*dt;w.y-=dy/d*W_.speed*.8*dt;
+    if(w.t<=0||d>600)G.will=null;
   }
 }
 function updPursuers(dt){
@@ -992,7 +1074,7 @@ cv.addEventListener('pointerdown',e=>{if(jid!==null)return;jid=e.pointerId;jo.x=
 cv.addEventListener('pointermove',e=>{if(e.pointerId!==jid)return;const dx=e.clientX-jo.x,dy=e.clientY-jo.y,l=Math.hypot(dx,dy),R=44;
   if(l>5){const k=Math.min(1,l/R);jv.x=dx/l*k;jv.y=dy/l*k}else{jv.x=jv.y=0}
   const m=Math.min(l,R)/(l||1);$('knob').style.transform=`translate(${dx*m}px,${dy*m}px)`;
-  if(l>R*2.2){jo.x=e.clientX-dx/l*R*2.2;jo.y=e.clientY-dy/l*R*2.2;const s=$('stick');s.style.left=jo.x+'px';s.style.top=jo.y+'px'}});
+});
 const endPtr=e=>{if(e.pointerId!==jid)return;jid=null;jv.x=jv.y=0;$('stick').style.display='none'};
 cv.addEventListener('pointerup',endPtr);cv.addEventListener('pointercancel',endPtr);
 cv.addEventListener('contextmenu',e=>e.preventDefault());
@@ -1017,7 +1099,7 @@ function update(dt){
   if(G.t>=G.limit){startShame('time');return}
   // move
   if(G.frozen>0)G.frozen-=dt;
-  const iv=G.frozen>0?{x:0,y:0}:inputVec();let sp=CFG.player.speed*F.spd*(1+CFG.buffs.elec.perLevel*G.buff.elec);
+  const iv=(G.frozen>0||G.stuck)?{x:0,y:0}:inputVec();let sp=CFG.player.speed*F.spd*(1+CFG.buffs.elec.perLevel*G.buff.elec);
   if(inLake(G.px,G.py))sp*=CFG.player.lakeSlow;
   G.moving=!!(iv.x||iv.y);
   if(G.moving){
@@ -1056,6 +1138,7 @@ function update(dt){
   G.spawnAcc+=dt*rate;
   while(G.spawnAcc>=1){G.spawnAcc--;if(G.enemies.length<CFG.enemies.max)spawnEnemy()}
   updPursuers(dt);
+  updWill(dt);
   if(CFG.bosses.demon.enabled&&!G.demonDone&&G.t>=G.demonAt&&G.limit-G.t>CFG.bosses.noSpawnLast){G.demonDone=true;spawnBoss(TEXT.demon)}
   if(CFG.meshuggah.enabled&&!G.meshDone&&G.t>=G.meshAt&&G.limit-G.t>CFG.meshuggah.noSpawnLast)meshuggah();
   if(G.t>=G.nextBoss&&G.limit-G.t>CFG.bosses.noSpawnLast&&spawnBoss())G.nextBoss+=CFG.bosses.every;
@@ -1252,7 +1335,7 @@ function endGame(reason){
   if(G.state==='over')return;
   G.state='over';stopMusic();cv.classList.remove('trip');sfx.die();$('hud').style.display='none';$('bubble').style.display='none';$('toast').style.display='none';$('stick').style.display='none';
   const key='pissteria_best_'+opts.len+'_'+opts.diff;const prev=+store.get(key)||0;const nb=G.score>prev;if(nb)store.set(key,G.score);
-  const [h,r]=TEXT.endings[reason];$('ovhead').textContent=h;$('ovhead').style.color=reason==='time'?'#5fe05f':['shat','bhajiLate','bhajiBad'].includes(reason)?'#c89a5c':'#ff5a5a';$('ovreason').textContent=r;
+  const [h,r]=TEXT.endings[((reason==='hp'||reason==='anger')&&G.stuck)?'willTalk':reason];$('ovhead').textContent=h;$('ovhead').style.color=reason==='time'?'#5fe05f':['shat','bhajiLate','bhajiBad'].includes(reason)?'#c89a5c':'#ff5a5a';$('ovreason').textContent=r;
   const mm=Math.floor(G.t/60),ss=String(Math.floor(G.t%60)).padStart(2,'0');
   $('ovtable').innerHTML=`<tr><td>${TEXT.ui.rowScore}</td><td>${G.score}</td></tr><tr><td>${TEXT.ui.rowFood}</td><td>${G.food}</td></tr><tr><td>${TEXT.ui.rowDog}</td><td>${G.dogs}</td></tr><tr><td>${TEXT.ui.rowSmashed}</td><td>${G.smashed}</td></tr><tr><td>${TEXT.ui.rowKills}</td><td>${G.kills}</td></tr><tr><td>${TEXT.ui.rowBosses}</td><td>${G.bossKills}</td></tr><tr><td>${TEXT.ui.rowBhajis}</td><td>${G.bhajis}</td></tr>${G.shades?'<tr><td>'+TEXT.ui.rowShades+'</td><td>'+G.shades+'</td></tr>':''}<tr><td>${TEXT.ui.rowLevel}</td><td>${G.level}</td></tr><tr><td>${TEXT.ui.rowForm}</td><td>${FORMS[G.form].name}</td></tr><tr><td>${TEXT.ui.rowTime}</td><td>${mm}:${ss}</td></tr>`;
   $('ovrank').textContent=(nb&&G.score>0?TEXT.ui.newBest:'')+TEXT.ui.rank+TEXT.ranks.find(r=>G.score<r[0])[1];
@@ -1297,10 +1380,11 @@ function render(){
   // falling cans
   for(const c of G.cans){if(c.t<0)continue;const k=c.t/.45;g.drawImage(SPR.can,X(c.x)-2,Y(c.y)-Math.round((1-k)*90)-5)}
   // entities sorted
-  const list=G.enemies.concat(G.pursuers||[]);list.push({player:true,y:G.py});list.sort((a,b)=>a.y-b.y);
+  const list=G.enemies.concat(G.pursuers||[],G.will?[G.will]:[]);list.push({player:true,y:G.py});list.sort((a,b)=>a.y-b.y);
   for(const e of list){
     if(e.player){drawPlayer(g,X,Y);continue}
     if(e.pur){drawPursuer(g,e,X,Y);continue}
+    if(e.will){drawWill(g,e,X,Y);continue}
     const sx=X(e.x),sy=Y(e.y);if(sx<-30||sx>W+30||sy<-30||sy>H+40)continue;
     const fr=(Math.floor(G.t*5+e.ph)&1),spr=e.boss?(BOSS_LOOKS[e.look]||BOSS_SPR)[fr]:ESPR[e.v][fr],w=Math.round(spr.width*e.s),h=Math.round(spr.height*e.s);
     g.fillStyle='#0004';g.fillRect(sx-(w>>2),sy-1,w>>1,Math.max(1,h>>3));
@@ -1333,6 +1417,23 @@ function render(){
   if(G.slit>0){const D=CFG.pursuers.ry,k=Math.min(1,(D.duration-G.slit)/.35,G.slit/.35),cy=Math.round(H/2),half=Math.round(H/2+(D.slitHeight/2-H/2)*k);g.fillStyle='#000';g.fillRect(0,0,W,cy-half);g.fillRect(0,cy+half,W,H-cy-half);g.fillStyle='#333';g.fillRect(0,cy-half-1,W,1);g.fillRect(0,cy+half,W,1)}
   if(G.flash>0){g.fillStyle='rgba(255,255,255,'+Math.min(.5,G.flash)+')';g.fillRect(0,0,W,H)}
   if(G.hp<35&&G.state==='play'){const a=.1+.08*Math.sin(G.t*8);g.fillStyle='rgba(255,0,0,'+a+')';g.fillRect(0,0,W,H)}
+}
+function wrapText(str,n){const out=[];let cur='';for(const w of str.split(' ')){if((cur+' '+w).trim().length>n){out.push(cur);cur=w}else cur=(cur+' '+w).trim()}if(cur)out.push(cur);return out}
+function drawWill(g,e,X,Y){
+  const sx=X(e.x),sy=Y(e.y);if(sx<-40||sx>W+40||sy<-50||sy>H+60)return;
+  const asleep=e.state==='asleep',fr=asleep?0:(Math.floor(G.t*5+e.ph)&1),spr=(asleep?WILLSPR.asleep:WILLSPR.awake)[fr];
+  const w=Math.round(spr.width*e.s),h=Math.round(spr.height*e.s);
+  g.fillStyle='#0004';g.fillRect(sx-(w>>2),sy-1,w>>1,2);
+  g.save();g.translate(sx,sy-h);if(e.fx<0){g.translate(w,0);g.scale(-1,1)}g.drawImage(spr,0,0,w,h);g.restore();
+  if(e.kickAnim>0){g.fillStyle='#1a1008';g.fillRect(sx+e.fx*(w>>1)-(e.fx<0?5:0),sy-6,6,3);g.fillStyle='#fff';g.fillRect(sx+e.fx*(w>>1)+e.fx*7-(e.fx<0?1:0),sy-7,1,1)}
+  txtC(g,'WILL',sx,sy-h-8,'#fff',1,'#000');
+  if(asleep){for(let i=0;i<3;i++){const t=(G.t*1.2+i*.33)%1;txt(g,'Z',sx+6+i*3,sy-h-12-Math.round(t*14),'#cfe0ff',1,'#000')}}
+  if(e.say){
+    const lines=wrapText(e.say,20),bw=Math.max(...lines.map(l=>txtW(l)))+8,bh=lines.length*7+5;
+    const bx=Math.max(2,Math.min(W-bw-2,sx-(bw>>1))),by=Math.max(36,sy-h-12-bh);
+    g.fillStyle='#111';g.fillRect(bx-1,by-1,bw+2,bh+2);g.fillStyle='#fff';g.fillRect(bx,by,bw,bh);
+    lines.forEach((l,i)=>txt(g,l,bx+4,by+3+i*7,'#111'));
+  }
 }
 function drawPursuer(g,e,X,Y){
   const sx=X(e.x),sy=Y(e.y);if(sx<-30||sx>W+30||sy<-40||sy>H+50)return;
@@ -1404,6 +1505,7 @@ function edgeMark(g,cx,cy,wx,wy,fn){
   fn(Math.round(W/2+dx*t),Math.round(H/2+dy*t));
 }
 function markers(g,cx,cy){
+  if(G.will&&G.will.state==='asleep'&&CFG.will.showMarker)edgeMark(g,cx,cy,G.will.x,G.will.y,(mx,my)=>{g.fillStyle=(G.t*2|0)%2?'#3a6a4a':'#2a4a35';g.fillRect(mx-5,my-7,10,14);txtC(g,'Z',mx+1,my-3,'#fff')});
   for(const q of (G.pursuers||[]))if(q.state==='chase')edgeMark(g,cx,cy,q.x,q.y,(mx,my)=>{g.fillStyle='#d02020';g.fillRect(mx-5,my-7,10,14);txtC(g,q.type[0],mx+1,my-3,'#fff')});
   if(G.bar)edgeMark(g,cx,cy,BAR_POS[0],BAR_POS[1],(mx,my)=>{g.fillStyle=(G.t*4|0)%2?'#ff8a1a':'#2a6a7a';g.fillRect(mx-6,my-7,12,14);g.drawImage(SPR.spritz,mx-3,my-4)});
   for(const e of G.eggs)if(e.type==='shades')edgeMark(g,cx,cy,e.x,e.y,(mx,my)=>{g.fillStyle='#000b';g.fillRect(mx-9,my-5,18,10);g.drawImage(SPR.shades,mx-7,my-3)});
@@ -1440,6 +1542,8 @@ function updHUD(){
    if(G.angerFreeze>0)h+='<div class="chip ora">'+TEXT.ui.gingerChip+' '+Math.ceil(G.angerFreeze)+'S</div>';
    if(G.bar)h+='<div class="chip ora">'+TEXT.ui.barChip+' '+Math.ceil(G.bar.t)+'S</div>';
    if(G.sf>0)h+='<div class="chip org">'+TEXT.ui.sfChip+' '+Math.ceil(G.sf)+'S</div>';
+   if(G.stuck)h+='<div class="chip red">'+TEXT.ui.stuckChip+'</div>';
+   else if(G.will&&G.will.state==='follow')h+='<div class="chip ora">'+TEXT.ui.willChip+' '+Math.ceil(G.will.t)+'S</div>';
    if(G.slit>0)h+='<div class="chip gry">'+TEXT.ui.slitChip+' '+Math.ceil(G.slit)+'S</div>';
    if(G.trip>0)h+='<div class="chip pur">'+TEXT.ui.chocChip+' '+Math.ceil(G.trip)+'S</div>';
    const c=$('chips');if(c.dataset.h!==h){c.dataset.h=h;c.innerHTML=h}}
