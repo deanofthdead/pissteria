@@ -55,6 +55,8 @@ html,body{margin:0;height:100%;background:var(--bg);overflow:hidden;font-family:
 .it b{position:absolute;right:-2px;bottom:-4px;font-size:7px;color:var(--yl);text-shadow:1px 1px #000}
 #bubble{position:absolute;left:50%;top:calc(50% - 74px);transform:translateX(-50%);max-width:78vw;background:#fff;color:#111;padding:8px 10px;font-size:9px;line-height:1.5;text-align:center;border:3px solid #111;box-shadow:3px 3px 0 #0008;display:none}
 #bubble:after{content:'';position:absolute;left:50%;bottom:-11px;margin-left:-6px;border:6px solid transparent;border-top:8px solid #111}
+#toast.big.green{color:#4aff6a;font-size:30px}
+#toast.big.blue{color:#7aa0ff}
 #toast.big{font-size:24px;color:#ff3b3b;line-height:1.4}
 #toast{white-space:pre-line;position:absolute;left:0;right:0;top:34%;text-align:center;font-size:14px;color:var(--yl);text-shadow:3px 3px #000;display:none;padding:0 12px;line-height:1.5}
 #stick{position:fixed;width:96px;height:96px;margin:-48px 0 0 -48px;border:3px solid #fff7;border-radius:50%;background:#fff1;display:none;pointer-events:none}
@@ -164,11 +166,13 @@ const CFG={
     lengths:[3,5,10,15,20],     // minutes offered on the menu
     defaultLength:10,
   },
-  // spawn = enemy spawn-rate multiplier, dmg = contact-damage multiplier
+  // spawn = enemy spawn-rate multiplier, dmg = contact-damage multiplier,
+  // late = how hard the spawn rate ramps up towards the end of rounds LONGER than 10 min (extra at the very end = 1 + late x (len-10)/10).
+  //        10 min or shorter rounds ignore it, a 20 min round gets the full value.
   difficulty:{
-    CHILL:   {spawn:.65, dmg:.7},
-    NORMAL:  {spawn:1,   dmg:1},
-    UNHINGED:{spawn:1.5, dmg:1.3},
+    CHILL:   {spawn:.65, dmg:.7,  late:1},
+    NORMAL:  {spawn:1,   dmg:1,   late:2.5},
+    UNHINGED:{spawn:1.5, dmg:1.3, late:6},
   },
   defaultDifficulty:'NORMAL',
 
@@ -224,7 +228,8 @@ const CFG={
 
   /* ---- the so-called left ---- */
   enemies:{
-    max:240,                    // alive at once
+    max:240,                    // alive at once (10 min round)
+    maxPerExtraMin:40,          // ...plus this for every minute the round is longer than 10 (20 min round: 640)
     spawnBase:1,                // spawns/sec at start...
     spawnPerMin:.3,             // ...plus this per minute survived
     spawnPerLevel:.05,          // ...plus this per player level
@@ -243,6 +248,16 @@ const CFG={
     contactDmgPerSize:1.4,      // ...plus this per scale point
     hitRadius:5,                // contact radius = hitRadius + hitRadiusPerSize*scale
     hitRadiusPerSize:4.5,
+  },
+
+  /* ---- night: the last part of the round ---- */
+  night:{
+    start:.85,                  // night falls this far through the round (.85 = last 15%)
+    fade:.03,                   // how long the fade to dark takes (fraction of the round)
+    darkness:.55,               // 0-1, how dark
+    disco:true,                 // a silent disco of stationary baddies (green lights) appears at night
+    discoCount:30,
+    discoEggLifetime:60,        // sec the pile of eggs from clearing the disco stays on the ground
   },
 
   /* ---- buffs ---- */
@@ -514,6 +529,7 @@ const TEXT={
     ryToast:'RY GOT THE PENKNIFE OUT.\nTUNNEL VISION!',
     mintToast:'KENDAL MINT CAKE!\nEVERYTHING IN VIEW GONE!', mintFloat:'MINT CAKE', gingerToast:'LAKE DISTRICT GINGERBREAD!\nANGER PAUSED FOR {n}S', gingerFloat:'GINGERBREAD', gingerChip:'ANGER PAUSED',
     willSpawn:'WILL IS ASLEEP SOMEWHERE ON THE MAP!', willWake:"WILL WOKE UP!\nHE'LL HELP FOR {n}S", willChip:'WILL HELPING', willTalk:'WILL STOPPED YOU\nFOR A CONVERSATION...', stuckChip:'STUCK TALKING TO WILL',
+    nightToast:'NIGHTTIME', gouranga:'GOURANGA',
     rowBhajis:'BHAJIS EATEN', rowShades:'SUNGLASSES FOUND',
     shadesToast:"DEAN'S LOST SUNGLASSES\nARE ON THE MAP!", shadesGot:"DEAN'S LOST SUNGLASSES!\n+{n} FOOD EGGS", shadesFloat:'SUNGLASSES',
     barOpenToast:'THE BAR IS OPEN!\nGET THERE FOR AN APEROL SPRITZ!', barChip:'BAR OPEN', barClosed:'THE BAR CLOSED.', barName:'THE BAR',
@@ -653,6 +669,7 @@ const POLY=[[100,545],[190,412],[440,392],[690,190],[860,90],[1040,25],[1290,85]
 const HUB=P(980,465);
 const START=P(560,725);
 const BHAJI_POS=P(790,730);                       // Becky's Bhajis, next to the food traders
+const DISCO_POS=P(880,600);                      // the silent disco
 const BAR_POS=P(330,560);                        // the bar (VIP side of the arena)
 const TOILETS=[P(1060,640),P(905,300)];           // two toilet blocks
 const LAKE={x:P(1165,415)[0],y:P(1165,415)[1],rx:Math.round(86*KX),ry:Math.round(50*KY)};
@@ -747,6 +764,7 @@ function buildWorld(){
   TOILETS.forEach(t=>{g.fillStyle='#8a7a52';g.fillRect(t[0]-41,t[1]-6,82,44);g.fillStyle='#cdb98a';g.fillRect(t[0]-39,t[1]-4,78,40);txtC(g,TEXT.ui.toiletLabel,t[0],t[1]-1,'#3a2a10')});
   {const b=BHAJI_POS;g.fillStyle='#8a7a52';g.fillRect(b[0]-37,b[1]-34,74,46);g.fillStyle='#cdb98a';g.fillRect(b[0]-35,b[1]-32,70,42)}
   {const b=BAR_POS;g.fillStyle='#8a7a52';g.fillRect(b[0]-37,b[1]-34,74,46);g.fillStyle='#cdb98a';g.fillRect(b[0]-35,b[1]-32,70,42)}
+  {const c=DISCO_POS;for(let ty=-6;ty<=6;ty++)for(let tx=-9;tx<=9;tx++){g.fillStyle=(tx+ty)&1?'#2a1a4a':'#3a2a6a';g.fillRect(c[0]+tx*10-5,c[1]+ty*8-4,10,8)}}
   // dense forest all around the festival (not walkable, just so the edge of the map never looks like a black void)
   for(let y=-WM;y<WH+WM;y+=8){for(let x=-WM;x<WW+WM;x+=10){
     const px=x+(R()*8|0),py=y+(R()*6|0);
@@ -889,7 +907,7 @@ function newGame(){
     wp:{whisk:1,cans:0,yoyo:0,vicks:0},buff:{jacket:0,elec:0,mush:0},
     cd:{whisk:1,cans:1.5,yoyo:1,vicks:0},swing:null,yo:null,
     enemies:[],eggs:[],puddles:[],cans:[],fx_:[],texts:[],
-    spawnAcc:0,eggT:0,dogT:rnd(...CFG.eggs.dogEvery)*.6,zincT:rnd(...CFG.eggs.zincEvery)*.8,mintT:rnd(...CFG.items.mint.every)*.8,gingT:rnd(...CFG.items.ginger.every)*.8,angerFreeze:0,minty:0,sayT:5,willAt:Math.random()<CFG.will.chance?rnd(...CFG.will.at)*opts.len*60:null,willDone:false,will:null,stuck:false,meshAt:rnd(...CFG.meshuggah.at)*opts.len*60,sunAt:Math.random()<CFG.sunglasses.chance?rnd(...CFG.sunglasses.at)*opts.len*60:null,sunDone:false,shades:0,barAt:rnd(...CFG.bar.at)*opts.len*60,bar:null,barDone:false,demonAt:rnd(...CFG.bosses.demon.at)*opts.len*60,demonDone:false,meshDone:false,pursuers:[],purT:rnd(...CFG.pursuers.firstIn),pGrace:0,slit:0,frozen:0,bhaji:null,bhajiT:rnd(...CFG.bhaji.firstIn),bhajis:0,sf:0,sfAcc:0,toiletCd:0,shitWhy:'shat',trip:0,nextBoss:CFG.bosses.firstAt,bossN:0,bossKills:0,slow:0,bubbleT:0,toastT:0,sh:null,reason:''};
+    spawnAcc:0,eggT:0,dogT:rnd(...CFG.eggs.dogEvery)*.6,zincT:rnd(...CFG.eggs.zincEvery)*.8,mintT:rnd(...CFG.items.mint.every)*.8,gingT:rnd(...CFG.items.ginger.every)*.8,angerFreeze:0,minty:0,sayT:5,nightOn:false,nightK:0,disco:null,willAt:Math.random()<CFG.will.chance?rnd(...CFG.will.at)*opts.len*60:null,willDone:false,will:null,stuck:false,meshAt:rnd(...CFG.meshuggah.at)*opts.len*60,sunAt:Math.random()<CFG.sunglasses.chance?rnd(...CFG.sunglasses.at)*opts.len*60:null,sunDone:false,shades:0,barAt:rnd(...CFG.bar.at)*opts.len*60,bar:null,barDone:false,demonAt:rnd(...CFG.bosses.demon.at)*opts.len*60,demonDone:false,meshDone:false,pursuers:[],purT:rnd(...CFG.pursuers.firstIn),pGrace:0,slit:0,frozen:0,bhaji:null,bhajiT:rnd(...CFG.bhaji.firstIn),bhajis:0,sf:0,sfAcc:0,toiletCd:0,shitWhy:'shat',trip:0,nextBoss:CFG.bosses.firstAt,bossN:0,bossKills:0,slow:0,bubbleT:0,toastT:0,sh:null,reason:''};
   for(let i=0;i<CFG.eggs.startCount;i++)spawnEgg('food',60,CFG.eggs.spawnDistMax);
   cv.classList.remove('trip');refreshItems();hide('menu');hide('over');hide('pause');hide('levelup');
   $('hud').style.display='block';updHUD();
@@ -1041,18 +1059,52 @@ function spawnBoss(forceKind,quiet){
 function floatText(x,y,s,col){G.texts.push({x,y,s,col,t:0})}
 function burst(x,y,col,n=6,sp=40){for(let i=0;i<n;i++){const a=Math.random()*6.283,v=rnd(sp*.3,sp);G.fx_.push({x,y,vx:Math.cos(a)*v,vy:Math.sin(a)*v-20,t:0,life:rnd(.3,.6),col,sz:Math.random()<.4?2:1})}}
 function say(s,dur=2.6){const b=$('bubble');b.textContent=s;b.style.display='block';G.bubbleT=dur}
-function toast(s,dur=1.6,big){const b=$('toast');b.textContent=s;b.style.display='block';b.classList.toggle('big',!!big);G.toastT=dur}
+function toast(s,dur=1.6,big){const b=$('toast');b.textContent=s;b.style.display='block';b.className=big?('big '+(big===true?'':big)):'';G.toastT=dur}
 function hit(e,d,nk){
   e.hp-=d;e.flash=.1;
   if(!e.boss&&!nk){const dx=e.x-G.px,dy=e.y-G.py,l=Math.hypot(dx,dy)||1;e.x+=dx/l*3;e.y+=dy/l*3}
   if(e.hp<=0&&!e.dead){e.dead=true;G.kills++;burst(e.x,e.y,'#a23be8',e.boss?30:5,e.boss?110:45);dropEggs(e);if(e.boss)bossDown(e)}
 }
+function rollDrop(){
+  const D=CFG.drops;
+  if(Math.random()<D.dozen.chance)return D.dozen.count;
+  if(Math.random()<D.six.chance)return D.six.count;
+  if(Math.random()<D.single.chance)return D.single.count;
+  return 0;
+}
+function spawnDisco(){
+  const E=CFG.enemies,c=DISCO_POS;let pts=[];
+  for(let gy=-3;gy<=3;gy++)for(let gx=-5;gx<=5;gx++){
+    const x=c[0]+gx*20+(gy&1?10:0)+rnd(-3,3),y=c[1]+gy*13+rnd(-2,2);
+    if((gx*20/70)**2+(gy*13/44)**2<=1&&inPoly(x,y)&&!inLake(x,y))pts.push([x,y]);
+  }
+  pts.sort(()=>Math.random()-.5);pts=pts.slice(0,CFG.night.discoCount);
+  const s0=Math.min(E.sizeMax,E.sizeBase+G.t/60*E.sizePerMin+(G.level-1)*E.sizePerLevel);
+  for(const [x,y] of pts){
+    const sc=s0*rnd(.9,1.1),hp=E.hpBase*Math.pow(sc,E.hpSizeExp)*(1+G.t*E.hpPerSec);
+    G.enemies.push({x,y,s:sc,hp,max:hp,spd:0,v:Math.random()*6|0,ph:Math.random()*6,flash:0,dmg:0,disco:true});
+  }
+  G.disco={left:pts.length,total:pts.length,cx:c[0],cy:c[1]};
+}
+function discoKill(){
+  const d=G.disco;if(!d)return;
+  if(--d.left>0)return;
+  // the whole disco is down: everything they'd have dropped, all at once
+  let total=0;for(let i=0;i<d.total;i++)total+=rollDrop();
+  for(let i=0;i<total;i++){
+    const a=Math.random()*6.283,r=Math.sqrt(Math.random());let x=d.cx+Math.cos(a)*r*60,y=d.cy+Math.sin(a)*r*38;
+    for(let k=0;k<6&&!inPoly(x,y);k++){x=(x+G.px)/2;y=(y+G.py)/2}
+    G.eggs.push({x,y,type:'food',ph:Math.random()*6,life:CFG.night.discoEggLifetime});
+  }
+  toast(TEXT.ui.gouranga,3.6,'green');sfx.lvl();sfx.form();G.flash=.4;G.shake=.5;
+  if(total)floatText(d.cx,d.cy-20,'+'+total,'#ffe27a');
+  G.disco=null;
+}
 function dropEggs(e){
+  if(e.disco){discoKill();return}
   const D=CFG.drops;let n=0;
   if(e.boss)n=CFG.bosses.foodEggDrops;
-  else if(Math.random()<D.dozen.chance)n=D.dozen.count;
-  else if(Math.random()<D.six.chance)n=D.six.count;
-  else if(Math.random()<D.single.chance)n=D.single.count;
+  else n=rollDrop();
   if(!n)return;
   const sp=D.spread+Math.sqrt(n)*3;
   for(let i=0;i<n;i++){
@@ -1135,11 +1187,15 @@ function update(dt){
   if(G.shit){G.shit=false;startShame(G.shitWhy||'shat');return}
   if(G.pend>0){openLevelUp();return}
   // enemies
-  const rate=(CFG.enemies.spawnBase+G.t/60*CFG.enemies.spawnPerMin+(G.level-1)*CFG.enemies.spawnPerLevel)*G.diff.spawn;
+  const lenExtra=Math.max(0,(G.limit/60-10)/10),prog=G.t/G.limit;
+  const rate=(CFG.enemies.spawnBase+G.t/60*CFG.enemies.spawnPerMin+(G.level-1)*CFG.enemies.spawnPerLevel)*G.diff.spawn*(1+G.diff.late*lenExtra*prog*prog);
+  const cap=CFG.enemies.max+Math.max(0,G.limit/60-10)*CFG.enemies.maxPerExtraMin;
   G.spawnAcc+=dt*rate;
-  while(G.spawnAcc>=1){G.spawnAcc--;if(G.enemies.length<CFG.enemies.max)spawnEnemy()}
+  while(G.spawnAcc>=1){G.spawnAcc--;if(G.enemies.length<cap)spawnEnemy()}
   updPursuers(dt);
   updWill(dt);
+  G.nightK=Math.max(0,Math.min(1,(G.t/G.limit-CFG.night.start)/CFG.night.fade));
+  if(!G.nightOn&&G.t/G.limit>=CFG.night.start){G.nightOn=true;toast(TEXT.ui.nightToast,3,'blue');sfx.alarm();G.shake=.3;if(CFG.night.disco)spawnDisco()}
   if(CFG.bosses.demon.enabled&&!G.demonDone&&G.t>=G.demonAt&&G.limit-G.t>CFG.bosses.noSpawnLast){G.demonDone=true;spawnBoss(TEXT.demon)}
   if(CFG.meshuggah.enabled&&!G.meshDone&&G.t>=G.meshAt&&G.limit-G.t>CFG.meshuggah.noSpawnLast)meshuggah();
   if(G.t>=G.nextBoss&&G.limit-G.t>CFG.bosses.noSpawnLast&&spawnBoss())G.nextBoss+=CFG.bosses.every;
@@ -1148,6 +1204,7 @@ function update(dt){
   const far=Math.hypot(W,H)/2+160;
   for(const e of G.enemies){
     const dx=G.px-e.x,dy=G.py-e.y,d=Math.hypot(dx,dy)||1;
+    if(e.disco){e.flash-=dt;continue}
     if(d>far+120){const a=Math.random()*6.283,R=far-120;e.x=G.px+Math.cos(a)*R;e.y=G.py+Math.sin(a)*R}
     const a=Math.atan2(dy,dx)+(d>40?Math.sin(G.t*1.7+e.ph)*.3:0);
     e.x+=Math.cos(a)*e.spd*dt;e.y+=Math.sin(a)*e.spd*dt;e.flash-=dt;
@@ -1347,7 +1404,7 @@ function endGame(reason){
    RENDER
    ===================================================================== */
 function render(){
-  const g=ctx;g.fillStyle='#16301a';g.fillRect(0,0,W,H);
+  const g=ctx;LEDS.length=0;g.fillStyle='#16301a';g.fillRect(0,0,W,H);
   let cx=Math.round(G.px-W/2),cy=Math.round(G.py-H/2-6);
   if(G.shake>0){const m=G.state==='shame'?3:1.5;cx+=Math.round(rnd(-m,m));cy+=Math.round(rnd(-m,m))}
   g.drawImage(WORLD,-cx-WM,-cy-WM);
@@ -1392,6 +1449,7 @@ function render(){
     if(e.flash>0){g.globalCompositeOperation='lighter'}
     g.drawImage(spr,sx-(w>>1),sy-h,w,h);
     g.globalCompositeOperation='source-over';
+    if(G.nightK>0)headphones(g,e,sx,sy,w,h);
     if(e.boss){const bw=Math.max(24,w>>1);g.fillStyle='#000';g.fillRect(sx-(bw>>1)-1,sy-h-6,bw+2,5);g.fillStyle='#e04040';g.fillRect(sx-(bw>>1),sy-h-5,Math.max(0,Math.round(bw*e.hp/e.max)),3);txtC(g,e.name,sx,sy-h-14,'#ffd23a',1,'#000')}
     else if(e.s>1.7&&e.hp<e.max){g.fillStyle='#000';g.fillRect(sx-8,sy-h-4,16,3);g.fillStyle='#e04040';g.fillRect(sx-7,sy-h-3,Math.max(0,Math.round(14*e.hp/e.max)),1)}
   }
@@ -1404,6 +1462,15 @@ function render(){
   // particles
   for(const f of G.fx_){g.globalAlpha=Math.max(0,1-f.t/f.life);g.fillStyle=f.col;g.fillRect(X(f.x),Y(f.y),f.sz,f.sz)}g.globalAlpha=1;
   for(const t of G.texts){txtC(g,t.s,X(t.x),Y(t.y)-Math.round(t.t*14),t.col,1,'#000')}
+  if(G.nightK>0){
+    const ccx=X(G.px),ccy=Y(G.py-6),nk=G.nightK,dk=CFG.night.darkness;
+    g.globalAlpha=dk*nk;g.globalCompositeOperation='multiply';g.fillStyle='#3a4a9a';g.fillRect(0,0,W,H);g.globalCompositeOperation='source-over';
+    const gr=g.createRadialGradient(ccx,ccy,24,ccx,ccy,Math.hypot(W,H)*.6);
+    gr.addColorStop(0,'rgba(5,8,30,0)');gr.addColorStop(1,'rgba(5,8,30,'+(dk*1.1*nk)+')');g.globalAlpha=1;g.fillStyle=gr;g.fillRect(0,0,W,H);
+    g.globalCompositeOperation='lighter';       // headphone lights glow through the dark
+    for(const L of LEDS){g.globalAlpha=.9;g.fillStyle=L[2];g.fillRect(L[0],L[1],2,2);g.globalAlpha=.28;g.fillRect(L[0]-2,L[1]-2,6,6)}
+    g.globalCompositeOperation='source-over';g.globalAlpha=1;
+  }
   // egg markers
   if(G.state==='play')markers(g,cx,cy);
   if(G.slow>0){const k=1-G.slow/CFG.evolve.slowmo,col=FORMS[G.form].col,ccx=X(G.px),ccy=Y(G.py-6);for(let rr=0;rr<3;rr++){const r=k*(70-rr*18);if(r<2)continue;g.fillStyle=rr?col:'#fff';for(let i=0;i<90;i++){const a=i/90*6.283;g.fillRect(Math.round(ccx+Math.cos(a)*r),Math.round(ccy+Math.sin(a)*r),2,2)}}}
@@ -1418,6 +1485,20 @@ function render(){
   if(G.slit>0){const D=CFG.pursuers.ry,k=Math.min(1,(D.duration-G.slit)/.35,G.slit/.35),cy=Math.round(H/2),half=Math.round(H/2+(D.slitHeight/2-H/2)*k);g.fillStyle='#000';g.fillRect(0,0,W,cy-half);g.fillRect(0,cy+half,W,H-cy-half);g.fillStyle='#333';g.fillRect(0,cy-half-1,W,1);g.fillRect(0,cy+half,W,1)}
   if(G.flash>0){g.fillStyle='rgba(255,255,255,'+Math.min(.5,G.flash)+')';g.fillRect(0,0,W,H)}
   if(G.hp<35&&G.state==='play'){const a=.1+.08*Math.sin(G.t*8);g.fillStyle='rgba(255,0,0,'+a+')';g.fillRect(0,0,W,H)}
+}
+const LEDS=[];
+function headphones(g,e,sx,sy,w,h){
+  const k=w/12,x0=sx-(w>>1),y0=sy-h,t=Math.max(1,Math.round(k));
+  g.fillStyle='#16161e';
+  g.fillRect(Math.round(x0+k),y0,Math.round(10*k),t);                               // band over the top
+  g.fillRect(Math.round(x0+k),y0,t,Math.round(4*k));g.fillRect(Math.round(x0+10*k),y0,t,Math.round(4*k));
+  const cw=Math.max(2,Math.round(2*k)),ch=Math.max(3,Math.round(3*k)),cy=y0+Math.round(3*k);
+  const lx=Math.round(x0+.2*k),rx=Math.round(x0+w-.2*k-cw);
+  g.fillRect(lx,cy,cw,ch);g.fillRect(rx,cy,cw,ch);                                    // ear cups
+  if((((G.t*3+e.ph*2)|0)&1)===0){
+    const col=e.disco?'#3aff6a':(((e.ph*7)|0)&1?'#ff3030':'#3a6aff');
+    LEDS.push([lx+((cw-2)>>1),cy+1,col],[rx+((cw-2)>>1),cy+1,col]);
+  }
 }
 function wrapText(str,n){const out=[];let cur='';for(const w of str.split(' ')){if((cur+' '+w).trim().length>n){out.push(cur);cur=w}else cur=(cur+' '+w).trim()}if(cur)out.push(cur);return out}
 function drawWill(g,e,X,Y){
